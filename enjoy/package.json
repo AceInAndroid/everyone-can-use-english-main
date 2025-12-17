@@ -76,7 +76,7 @@
     "@radix-ui/react-toggle": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.8",
     "@rails/actioncable": "8.0.200",
-    "@tailwindcss/typography": "^0.5.16",
+    "@tailwindcss/typography": "^0.5.19",
     "@types/ahoy.js": "^0.4.2",
     "@types/autosize": "^4.0.3",
     "@types/command-exists": "^1.2.3",
