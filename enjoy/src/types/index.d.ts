@@ -291,9 +291,16 @@ type EchogardenSttConfigType = {
 };
 
 type PronunciationAssessmentConfigType = {
-  engine: "azure" | "whisper_local";
+  engine: "azure" | "whisper_local" | "sherpa_wasm";
   whisper?: {
     engine: "whisper" | "whisper.cpp";
     model: string;
+  };
+  sherpa?: {
+    /**
+     * Built-in small English model shipped with the app.
+     * Files are expected under `assets/sherpa-onnx/<modelId>/`.
+     */
+    modelId: string;
   };
 };

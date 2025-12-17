@@ -6,6 +6,7 @@ import camelcaseKeys from "camelcase-keys";
 import { map, forEach, sum, filter, cloneDeep } from "lodash";
 import * as Diff from "diff";
 import { PronunciationAssessmentEngineEnum } from "@/types/enums";
+import { transcribeSherpaWasm } from "@renderer/lib/sherpa-wasm";
 
 const THIRTY_SECONDS = 30 * 1000;
 const ONE_MINUTE = 60 * 1000;
@@ -49,6 +50,19 @@ export const usePronunciationAssessments = () => {
         EnjoyApp,
         pronunciationAssessmentConfig,
         url,
+        blob,
+        language,
+        reference,
+        durationMs: recording?.duration,
+      });
+    } else if (engine === PronunciationAssessmentEngineEnum.SHERPA_WASM) {
+      if (recording.duration && recording.duration > FIVE_MINUTES) {
+        throw new Error(t("recordingIsTooLongToAssess"));
+      }
+
+      result = await assessBySherpaWasm({
+        EnjoyApp,
+        pronunciationAssessmentConfig,
         blob,
         language,
         reference,
@@ -507,6 +521,131 @@ const extractHypothesisWordTimeline = (
 };
 
 const clampScore = (n: number) => Math.max(0, Math.min(100, n));
+
+const assessBySherpaWasm = async (params: {
+  EnjoyApp: any;
+  pronunciationAssessmentConfig?: PronunciationAssessmentConfigType;
+  blob: Blob;
+  language: string;
+  reference: string;
+  durationMs?: number;
+}) => {
+  const { EnjoyApp, pronunciationAssessmentConfig, blob, language, reference, durationMs } =
+    params;
+
+  const sherpaModelId = pronunciationAssessmentConfig?.sherpa?.modelId || "en-us-small";
+
+  // Sherpa runs in the renderer (WASM); we still use Echogarden's DTW alignment to get word-level timing.
+  const recognized = await transcribeSherpaWasm({ blob });
+  const transcript: string = recognized?.transcript || "";
+
+  const languageCode = (language || "en-US").split("-")[0];
+  const alignmentResult = await EnjoyApp.echogarden.align(
+    new Uint8Array(await blob.arrayBuffer()),
+    transcript,
+    {
+      engine: "dtw",
+      language: languageCode,
+      isolate: false,
+    }
+  );
+
+  const hypTimeline = extractHypothesisWordTimeline(alignmentResult?.timeline || []);
+  const hypTokens = hypTimeline.map((w) => w.token);
+  const refTokens = tokenize(reference || transcript);
+
+  const ops = alignTokens(refTokens, hypTokens);
+
+  let substitutions = 0;
+  let deletions = 0;
+  let insertions = 0;
+  let matches = 0;
+
+  const words: PronunciationAssessmentWordResultType[] = [];
+  for (const op of ops) {
+    if (op.type === "equal") {
+      matches += 1;
+      const meta = hypTimeline[op.hypIndex];
+      words.push({
+        word: op.ref,
+        offset: meta?.offset || 0,
+        duration: meta?.duration || 0,
+        pronunciationAssessment: { accuracyScore: 100, errorType: "None" },
+        phonemes: [],
+      } as any);
+    } else if (op.type === "replace") {
+      substitutions += 1;
+      const meta = hypTimeline[op.hypIndex];
+      words.push({
+        word: op.ref,
+        offset: meta?.offset || 0,
+        duration: meta?.duration || 0,
+        pronunciationAssessment: {
+          accuracyScore: 20,
+          errorType: "Mispronunciation",
+        },
+        phonemes: [],
+      } as any);
+    } else if (op.type === "delete") {
+      deletions += 1;
+      words.push({
+        word: op.ref,
+        offset: 0,
+        duration: 0,
+        pronunciationAssessment: { accuracyScore: 0, errorType: "Omission" },
+        phonemes: [],
+      } as any);
+    } else if (op.type === "insert") {
+      insertions += 1;
+      const meta = hypTimeline[op.hypIndex];
+      words.push({
+        word: op.hyp,
+        offset: meta?.offset || 0,
+        duration: meta?.duration || 0,
+        pronunciationAssessment: { accuracyScore: 0, errorType: "Insertion" },
+        phonemes: [],
+      } as any);
+    }
+  }
+
+  const n = Math.max(1, refTokens.length);
+  const wer = (substitutions + deletions + insertions) / n;
+  const accuracy = matches / n;
+  const completeness = (n - deletions) / n;
+  const fluency = durationMs
+    ? Math.min(1, (hypTokens.length / (durationMs / 1000)) / 3) * 100
+    : accuracy * 100;
+
+  const pronunciationScore = clampScore((1 - wer) * 100);
+  const accuracyScore = clampScore(accuracy * 100);
+  const completenessScore = clampScore(completeness * 100);
+  const fluencyScore = clampScore(fluency);
+
+  const detailResult = {
+    engine: "sherpa_wasm",
+    sherpa: { modelId: sherpaModelId },
+    confidence: recognized?.confidence ?? 0,
+    display: transcript,
+    itn: transcript,
+    lexical: transcript,
+    markedItn: transcript,
+    pronunciationAssessment: {
+      accuracyScore,
+      completenessScore,
+      fluencyScore,
+      pronScore: pronunciationScore,
+    },
+    words,
+  };
+
+  return {
+    pronunciationScore,
+    accuracyScore,
+    completenessScore,
+    fluencyScore,
+    detailResult,
+  };
+};
 
 const assessByWhisperLocal = async (params: {
   EnjoyApp: any;

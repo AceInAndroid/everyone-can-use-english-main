@@ -134,7 +134,11 @@ export class PronunciationAssessment extends Model<PronunciationAssessment> {
 
   @AfterCreate
   static autoSync(pronunciationAssessment: PronunciationAssessment) {
-    if (pronunciationAssessment?.result?.engine === "whisper_local") return;
+    if (
+      pronunciationAssessment?.result?.engine === "whisper_local" ||
+      pronunciationAssessment?.result?.engine === "sherpa_wasm"
+    )
+      return;
     pronunciationAssessment.sync().catch(() => {});
   }
 

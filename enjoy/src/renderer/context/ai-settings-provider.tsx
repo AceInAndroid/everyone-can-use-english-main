@@ -248,7 +248,10 @@ export const AISettingsProvider = ({
 
     if (
       isGuest &&
-      config?.engine !== PronunciationAssessmentEngineEnum.WHISPER_LOCAL
+      ![
+        PronunciationAssessmentEngineEnum.WHISPER_LOCAL,
+        PronunciationAssessmentEngineEnum.SHERPA_WASM,
+      ].includes(config?.engine)
     ) {
       config = {
         ...config,
@@ -268,6 +271,10 @@ export const AISettingsProvider = ({
           model: "tiny",
         };
       }
+    }
+
+    if (config?.engine === PronunciationAssessmentEngineEnum.SHERPA_WASM) {
+      config.sherpa = config.sherpa || { modelId: "en-us-small" };
     }
 
     if (!mountedRef.current) return;

@@ -15,6 +15,7 @@ import {
 import { WHISPER_MODELS } from "@/constants";
 import { PronunciationAssessmentEngineEnum } from "@/types/enums";
 import { useContext, useMemo } from "react";
+import { checkSherpaWasmModel } from "@renderer/lib/sherpa-wasm";
 
 export const PronunciationAssessmentSettings = () => {
   const { EnjoyApp, user } = useContext(AppSettingsProviderContext);
@@ -27,8 +28,9 @@ export const PronunciationAssessmentSettings = () => {
       pronunciationAssessmentConfig || {
         engine: PronunciationAssessmentEngineEnum.AZURE,
         whisper: { engine: "whisper", model: "tiny" },
+        sherpa: { modelId: "en-us-small" },
       }
-    );
+    ) as PronunciationAssessmentConfigType;
   }, [pronunciationAssessmentConfig]);
 
   const updateConfig = async (next: PronunciationAssessmentConfigType) => {
@@ -36,7 +38,7 @@ export const PronunciationAssessmentSettings = () => {
     toast.success(t("saved"));
   };
 
-  const whisperEngine = config.whisper?.engine || "whisper";
+  const whisperEngine = (config.whisper?.engine || "whisper") as "whisper" | "whisper.cpp";
   const whisperModel = config.whisper?.model || "tiny";
 
   const handleCheckLocal = async () => {
@@ -62,6 +64,19 @@ export const PronunciationAssessmentSettings = () => {
     );
   };
 
+  const handleCheckSherpa = async () => {
+    toast.promise(
+      async () => {
+        await checkSherpaWasmModel();
+      },
+      {
+        loading: t("checkingSherpaModel"),
+        success: t("sherpaModelIsWorkingGood"),
+        error: (error) => t("sherpaModelIsNotWorking") + ": " + error,
+      }
+    );
+  };
+
   return (
     <div className="flex items-start justify-between py-4">
       <div className="">
@@ -73,6 +88,8 @@ export const PronunciationAssessmentSettings = () => {
             t("azurePronunciationAssessmentDescription")}
           {config.engine === PronunciationAssessmentEngineEnum.WHISPER_LOCAL &&
             t("localWhisperPronunciationAssessmentDescription")}
+          {config.engine === PronunciationAssessmentEngineEnum.SHERPA_WASM &&
+            t("sherpaWasmPronunciationAssessmentDescription")}
         </div>
 
         {config.engine === PronunciationAssessmentEngineEnum.WHISPER_LOCAL && (
@@ -126,6 +143,15 @@ export const PronunciationAssessmentSettings = () => {
             </div>
           </div>
         )}
+
+        {config.engine === PronunciationAssessmentEngineEnum.SHERPA_WASM && (
+          <div className="text-sm text-muted-foreground mt-4 px-1 space-y-2">
+            <div className="flex items-center space-x-2">
+              <div className="min-w-24">{t("model")}</div>
+              <div className="text-foreground">en-us-small</div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center space-x-2">
@@ -136,6 +162,7 @@ export const PronunciationAssessmentSettings = () => {
               ...config,
               engine: value as PronunciationAssessmentEngineEnum,
               whisper: config.whisper || { engine: "whisper", model: "tiny" },
+              sherpa: config.sherpa || { modelId: "en-us-small" },
             }).catch((error) => toast.error(error.message));
           }}
         >
@@ -152,11 +179,20 @@ export const PronunciationAssessmentSettings = () => {
           <SelectItem value={PronunciationAssessmentEngineEnum.WHISPER_LOCAL}>
             {t("localWhisper")}
           </SelectItem>
+          <SelectItem value={PronunciationAssessmentEngineEnum.SHERPA_WASM}>
+            {t("localSherpaWasm")}
+          </SelectItem>
         </SelectContent>
       </Select>
 
         {config.engine === PronunciationAssessmentEngineEnum.WHISPER_LOCAL && (
           <Button onClick={handleCheckLocal} variant="secondary" size="sm">
+            {t("check")}
+          </Button>
+        )}
+
+        {config.engine === PronunciationAssessmentEngineEnum.SHERPA_WASM && (
+          <Button onClick={handleCheckSherpa} variant="secondary" size="sm">
             {t("check")}
           </Button>
         )}

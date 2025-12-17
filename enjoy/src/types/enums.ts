@@ -26,6 +26,7 @@ export enum SttEngineOptionEnum {
 export enum PronunciationAssessmentEngineEnum {
   AZURE = "azure",
   WHISPER_LOCAL = "whisper_local",
+  SHERPA_WASM = "sherpa_wasm",
 }
 
 export enum AppSettingsKeyEnum {
