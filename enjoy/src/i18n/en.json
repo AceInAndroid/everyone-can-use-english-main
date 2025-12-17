@@ -641,6 +641,7 @@
   "decodingWaveform": "Decoding waveform",
   "failedToDecodeWaveform": "Failed to decode waveform",
   "wmaWillBeTranscoded": "WMA is not supported for waveform playback. It will be transcoded to MP3 automatically.",
+  
   "transcribedSuccessfully": "Transcribed successfully",
   "transcribing": "Transcribing",
   "notTranscribedYet": "Not transcribed yet",

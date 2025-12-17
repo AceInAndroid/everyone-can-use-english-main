@@ -136,16 +136,15 @@ class AudiosHandler {
     if (!audio) {
       throw new Error(t("models.audio.notFound"));
     }
-    return await db.withRetry(() =>
-      audio.update({
-        name,
-        description,
-        metadata,
-        language,
-        coverUrl,
-        source,
-      })
-    );
+    const updates: Partial<Attributes<Audio>> = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (metadata !== undefined) updates.metadata = metadata;
+    if (language !== undefined) updates.language = language;
+    if (coverUrl !== undefined) updates.coverUrl = coverUrl;
+    if (source !== undefined) updates.source = source;
+
+    return await db.withRetry(() => audio.update(updates as any));
   }
 
   private async destroy(_event: IpcMainEvent, id: string) {

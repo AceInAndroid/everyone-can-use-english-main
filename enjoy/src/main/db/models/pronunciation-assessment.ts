@@ -101,9 +101,13 @@ export class PronunciationAssessment extends Model<PronunciationAssessment> {
   }
 
   async sync() {
+    const accessToken = (await UserSetting.accessToken()) as string;
+    // Guest mode or logged-out: no remote sync.
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger: log.scope("api/client"),
     });
 

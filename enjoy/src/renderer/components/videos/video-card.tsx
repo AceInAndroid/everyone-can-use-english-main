@@ -23,15 +23,20 @@ export const VideoCard = (props: {
   onDelete?: () => void;
   onEdit?: () => void;
 }) => {
-  const { video, className, onDelete, onEdit } = props;
+  const {
+    video,
+    className,
+    onDelete,
+    onEdit,
+  } = props;
 
   return (
     <div className={cn("w-full relative", className)}>
       <Link to={`/videos/${video.id}`}>
-        <div
-          className="aspect-[4/3] border rounded-lg overflow-hidden relative"
-          style={{
-            borderBottomColor: `#${video.md5.substr(0, 6)}`,
+          <div
+            className="aspect-[4/3] border rounded-lg overflow-hidden relative"
+            style={{
+              borderBottomColor: `#${video.md5.substr(0, 6)}`,
             borderBottomWidth: 3,
           }}
         >

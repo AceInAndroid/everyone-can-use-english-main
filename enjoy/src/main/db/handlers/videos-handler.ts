@@ -103,7 +103,9 @@ class VideosHandler {
           ...params,
         })
       )
-      .then((video) => video.toJSON())
+      .then((video: any) => {
+        return video.toJSON();
+      })
       .catch((err) => {
         logger.error(err);
         throw new Error(t("models.video.failedToAdd", { error: err.message }));
@@ -121,9 +123,15 @@ class VideosHandler {
     if (!video) {
       throw new Error(t("models.video.notFound"));
     }
-    await db.withRetry(() =>
-      video.update({ name, description, metadata, language, coverUrl, source })
-    );
+    const updates: Partial<Attributes<Video>> = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (metadata !== undefined) updates.metadata = metadata;
+    if (language !== undefined) updates.language = language;
+    if (coverUrl !== undefined) updates.coverUrl = coverUrl;
+    if (source !== undefined) updates.source = source;
+
+    await db.withRetry(() => video.update(updates as any));
   }
 
   private async destroy(event: IpcMainEvent, id: string) {

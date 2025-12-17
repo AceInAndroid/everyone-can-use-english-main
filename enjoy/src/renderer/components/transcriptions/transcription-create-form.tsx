@@ -328,6 +328,7 @@ export const TranscriptionCreateForm = (props: {
                 </FormItem>
               )}
             />
+
           </CollapsibleContent>
           <div className="flex justify-center">
             <CollapsibleTrigger asChild>

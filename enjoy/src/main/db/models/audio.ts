@@ -230,9 +230,13 @@ export class Audio extends Model<Audio> {
   async sync() {
     if (this.isSynced) return;
 
+    const accessToken = (await UserSetting.accessToken()) as string;
+    // Guest mode or logged-out: no remote sync.
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger: log.scope("audio/sync"),
     });
 
@@ -299,9 +303,12 @@ export class Audio extends Model<Audio> {
       },
     });
 
+    const accessToken = (await UserSetting.accessToken()) as string;
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger: log.scope("audio/cleanupFile"),
     });
 

@@ -246,9 +246,13 @@ export class Video extends Model<Video> {
   async sync() {
     if (this.isSynced) return;
 
+    const accessToken = (await UserSetting.accessToken()) as string;
+    // Guest mode or logged-out: no remote sync.
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger,
     });
 
@@ -315,9 +319,12 @@ export class Video extends Model<Video> {
       },
     });
 
+    const accessToken = (await UserSetting.accessToken()) as string;
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger: log.scope("video/cleanupFile"),
     });
 

@@ -200,9 +200,13 @@ export class Recording extends Model<Recording> {
   async sync() {
     if (this.isSynced) return;
 
+    const accessToken = (await UserSetting.accessToken()) as string;
+    // Guest mode or logged-out: no remote sync.
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger,
     });
 
@@ -295,9 +299,11 @@ export class Recording extends Model<Recording> {
   @AfterDestroy
   static async cleanupFile(recording: Recording) {
     fs.remove(recording.filePath);
+    const accessToken = (await UserSetting.accessToken()) as string;
+    if (!accessToken) return;
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger: log.scope("recording/cleanupFile"),
     });
     webApi.deleteRecording(recording.id);
