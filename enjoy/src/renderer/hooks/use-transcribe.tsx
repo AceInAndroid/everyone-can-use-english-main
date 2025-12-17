@@ -257,6 +257,19 @@ export const useTranscribe = () => {
             | "whisper"
             | "whisperCpp"
         ].model;
+
+      if (
+        echogardenSttConfig.engine === "whisper" &&
+        model?.startsWith("large") &&
+        echogardenSttConfig.whisper?.encoderProvider === "cpu" &&
+        echogardenSttConfig.whisper?.decoderProvider === "cpu"
+      ) {
+        const platformInfo = await EnjoyApp.app.getPlatformInfo();
+        if (platformInfo?.platform === "darwin") {
+          throw new Error(t("largeWhisperOnnxMayCrashOnMac"));
+        }
+      }
+
       res = await EnjoyApp.echogarden.recognize(url, {
         language: languageCode,
         ...echogardenSttConfig,

@@ -21,6 +21,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { WHISPER_MODELS } from "@/constants";
+import { toast } from "@renderer/components/ui";
 
 const echogardenSttConfigSchema = z.object({
   engine: z.enum(["whisper", "whisper.cpp"]),
@@ -75,14 +76,29 @@ export const EchogardenSttSettings = (props: {
   });
 
   const onSubmit = async (data: z.infer<typeof echogardenSttConfigSchema>) => {
+    const selectedModel = data.whisper.model || "tiny";
+    const isLargeModel = selectedModel.startsWith("large");
+
+    if (
+      platformInfo?.platform === "darwin" &&
+      data.engine === "whisper" &&
+      isLargeModel &&
+      data.whisper.encoderProvider === "cpu" &&
+      data.whisper.decoderProvider === "cpu"
+    ) {
+      toast.warning(t("largeWhisperOnnxMayCrashOnMacSwitchingToWhisperCpp"));
+      data.engine = "whisper.cpp";
+      data.whisperCpp.model = selectedModel;
+    }
+
     onSave({
       engine: data.engine || "whisper",
       whisper: {
-        model: data.whisper.model || "tiny",
+        model: selectedModel,
         ...data.whisper,
       },
       whisperCpp: {
-        model: data.whisperCpp.model || "tiny",
+        model: data.whisperCpp.model || selectedModel,
         ...data.whisperCpp,
       },
     });

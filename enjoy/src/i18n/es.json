@@ -473,6 +473,8 @@
   "checkingWhisperModel": "Verificando el modelo de Whisper",
   "whisperModelIsWorkingGood": "El modelo de Whisper está funcionando bien",
   "whisperModelIsNotWorking": "El modelo de Whisper no está funcionando",
+  "largeWhisperOnnxMayCrashOnMac": "En macOS, el motor Whisper (ONNX) se ejecuta en CPU y los modelos grandes pueden causar fallos. Cambia a Whisper.cpp o usa un modelo más pequeño (p. ej., small.en).",
+  "largeWhisperOnnxMayCrashOnMacSwitchingToWhisperCpp": "Los modelos grandes de Whisper pueden fallar en macOS con el motor Whisper (ONNX). Se cambió el motor a Whisper.cpp.",
   "relaunchIsNeededAfterChanged": "Es necesario reiniciar después del cambio",
   "reloadIsNeededAfterChanged": "Es necesario recargar después del cambio",
   "defaultAiEngine": "Motor de IA predeterminado",

@@ -473,6 +473,8 @@
   "checkingWhisperModel": "Checking whisper model",
   "whisperModelIsWorkingGood": "Whisper model is working good",
   "whisperModelIsNotWorking": "Whisper model is not working",
+  "largeWhisperOnnxMayCrashOnMac": "The Whisper (ONNX) engine runs on CPU on macOS and large models may crash. Please switch to Whisper.cpp or use a smaller model (e.g. small.en).",
+  "largeWhisperOnnxMayCrashOnMacSwitchingToWhisperCpp": "Large Whisper models may crash on macOS with the Whisper (ONNX) engine. Switched engine to Whisper.cpp.",
   "relaunchIsNeededAfterChanged": "Relaunch is needed after changed",
   "reloadIsNeededAfterChanged": "Reload is needed after changed",
   "defaultAiEngine": "Default AI engine",
