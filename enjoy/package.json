@@ -130,7 +130,7 @@
     "electron-log": "^5.3.2",
     "electron-playwright-helpers": "^1.7.1",
     "electron-squirrel-startup": "^1.0.1",
-    "eslint": "^9.22.0",
+    "eslint": "^9.39.2",
     "eslint-import-resolver-typescript": "^3.8.7",
     "eslint-plugin-import": "^2.31.0",
     "flora-colossus": "^2.0.0",
