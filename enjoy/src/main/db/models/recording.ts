@@ -35,6 +35,7 @@ import { Attributes, Op, Transaction } from "sequelize";
 import { v5 as uuidv5 } from "uuid";
 import FfmpegWrapper from "@main/ffmpeg";
 import { MIME_TYPES } from "@/constants";
+import db from "@main/db";
 
 const logger = log.scope("db/models/recording");
 
@@ -180,10 +181,12 @@ export class Recording extends Model<Recording> {
 
     return storage
       .put(this.md5, this.filePath, this.mimeType)
-      .then((result) => {
+      .then(async (result) => {
         logger.debug("upload result:", result.data);
         if (result.data.success) {
-          this.update({ uploadedAt: new Date() }, { hooks: false });
+          await db.withRetry(() =>
+            this.update({ uploadedAt: new Date() }, { hooks: false })
+          );
         } else {
           throw new Error(result.data);
         }
@@ -203,9 +206,10 @@ export class Recording extends Model<Recording> {
       logger,
     });
 
-    return webApi.syncRecording(this.toJSON()).then(() => {
-      this.update({ syncedAt: new Date() }, { hooks: false });
-    });
+    await webApi.syncRecording(this.toJSON());
+    await db.withRetry(() =>
+      this.update({ syncedAt: new Date() }, { hooks: false })
+    );
   }
 
   @AfterFind

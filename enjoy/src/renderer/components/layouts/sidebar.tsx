@@ -49,8 +49,9 @@ export const Sidebar = (props: {
   const { isCollapsed, setIsCollapsed } = props;
   const location = useLocation();
   const activeTab = location.pathname;
-  const { EnjoyApp, cable, displayPreferences, setDisplayPreferences } =
+  const { EnjoyApp, cable, displayPreferences, setDisplayPreferences, user } =
     useContext(AppSettingsProviderContext);
+  const isGuest = Boolean(user?.isGuest);
 
   useEffect(() => {
     if (!cable) return;
@@ -113,32 +114,36 @@ export const Sidebar = (props: {
               isCollapsed={isCollapsed}
             />
 
-            <SidebarItem
-              href="/chats"
-              label={t("sidebar.chats")}
-              tooltip={t("sidebar.chats")}
-              active={activeTab.startsWith("/chats")}
-              Icon={MessagesSquareIcon}
-              isCollapsed={isCollapsed}
-            />
+            {!isGuest && (
+              <>
+                <SidebarItem
+                  href="/chats"
+                  label={t("sidebar.chats")}
+                  tooltip={t("sidebar.chats")}
+                  active={activeTab.startsWith("/chats")}
+                  Icon={MessagesSquareIcon}
+                  isCollapsed={isCollapsed}
+                />
 
-            <SidebarItem
-              href="/courses"
-              label={t("sidebar.courses")}
-              tooltip={t("sidebar.courses")}
-              active={activeTab.startsWith("/courses")}
-              Icon={GraduationCapIcon}
-              isCollapsed={isCollapsed}
-            />
+                <SidebarItem
+                  href="/courses"
+                  label={t("sidebar.courses")}
+                  tooltip={t("sidebar.courses")}
+                  active={activeTab.startsWith("/courses")}
+                  Icon={GraduationCapIcon}
+                  isCollapsed={isCollapsed}
+                />
 
-            <SidebarItem
-              href="/community"
-              label={t("sidebar.community")}
-              tooltip={t("sidebar.community")}
-              active={activeTab.startsWith("/community")}
-              Icon={UsersRoundIcon}
-              isCollapsed={isCollapsed}
-            />
+                <SidebarItem
+                  href="/community"
+                  label={t("sidebar.community")}
+                  tooltip={t("sidebar.community")}
+                  active={activeTab.startsWith("/community")}
+                  Icon={UsersRoundIcon}
+                  isCollapsed={isCollapsed}
+                />
+              </>
+            )}
 
             <Separator />
 
@@ -322,6 +327,7 @@ const SidebarHeader = (props: { isCollapsed: boolean }) => {
   if (!user) {
     return null;
   }
+  const isGuest = Boolean(user.isGuest);
 
   return (
     <div className="py-3 px-1 sticky top-0 bg-muted z-10 non-draggable-region">
@@ -356,24 +362,28 @@ const SidebarHeader = (props: { isCollapsed: boolean }) => {
           align="start"
           side="bottom"
         >
-          <DropdownMenuItem
-            className="cursor-pointer"
-            onSelect={() => navigate("/profile")}
-          >
-            <span>{t("sidebar.profile")}</span>
-            <UserIcon className="size-4 ml-auto" />
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => setDisplayDepositDialog(true)}
-            className="cursor-pointer"
-          >
-            <span className="flex-1 truncate">${user.balance || 0.0}</span>
-            <CreditCardIcon className="size-4 ml-auto" />
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          {!isGuest && (
+            <>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onSelect={() => navigate("/profile")}
+              >
+                <span>{t("sidebar.profile")}</span>
+                <UserIcon className="size-4 ml-auto" />
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => setDisplayDepositDialog(true)}
+                className="cursor-pointer"
+              >
+                <span className="flex-1 truncate">${user.balance || 0.0}</span>
+                <CreditCardIcon className="size-4 ml-auto" />
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem onSelect={logout} className="cursor-pointer">
-            <span>{t("logout")}</span>
+            <span>{isGuest ? t("exitGuestMode") : t("logout")}</span>
             <LogOutIcon className="size-4 ml-auto" />
           </DropdownMenuItem>
         </DropdownMenuContent>

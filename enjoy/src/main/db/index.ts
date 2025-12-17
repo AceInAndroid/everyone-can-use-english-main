@@ -56,6 +56,9 @@ const db = {
   disconnect: async () => {},
   registerIpcHandlers: () => {},
   isConnecting: false,
+  handlersRegistered: false,
+  ensureReady: async () => {},
+  withRetry: async <T>(_fn: () => Promise<T>) => null as unknown as T,
   backup: async (options?: { force: boolean }) => {},
   restore: async (backupFilePath: string) => {},
 };
@@ -83,8 +86,20 @@ const handlers = [
 db.connect = async () => {
   // Use a lock to prevent concurrent connections
   if (db.isConnecting) {
-    throw new Error("Database connection is already in progress");
+    // Wait for the in-progress connection attempt to finish instead of throwing.
+    await new Promise<void>((resolve) => {
+      const start = Date.now();
+      const tick = () => {
+        if (!db.isConnecting) return resolve();
+        // Avoid waiting forever in case something goes wrong.
+        if (Date.now() - start > 15_000) return resolve();
+        setTimeout(tick, 100);
+      };
+      tick();
+    });
   }
+
+  if (db.connection) return;
 
   db.isConnecting = true;
 
@@ -216,9 +231,12 @@ db.connect = async () => {
     i18n(language);
 
     // register handlers
-    logger.info(`Registering handlers`);
-    for (const handler of handlers) {
-      handler.register();
+    if (!db.handlersRegistered) {
+      logger.info(`Registering handlers`);
+      for (const handler of handlers) {
+        handler.register();
+      }
+      db.handlersRegistered = true;
     }
 
     db.connection = sequelize;
@@ -232,13 +250,53 @@ db.connect = async () => {
 };
 
 db.disconnect = async () => {
-  // unregister handlers
-  for (const handler of handlers) {
-    handler.unregister();
+  // Keep IPC handlers registered so the renderer won't hit
+  // "No handler registered" after transient disconnects/crashes.
+  // Handlers should call db.ensureReady/db.withRetry before using the DB.
+  const connection = db.connection;
+  db.connection = null;
+  await connection?.close();
+};
+
+db.ensureReady = async () => {
+  if (db.isConnecting) {
+    await new Promise<void>((resolve) => {
+      const start = Date.now();
+      const tick = () => {
+        if (!db.isConnecting) return resolve();
+        if (Date.now() - start > 15_000) return resolve();
+        setTimeout(tick, 100);
+      };
+      tick();
+    });
   }
 
-  await db.connection?.close();
-  db.connection = null;
+  if (!db.connection) {
+    await db.connect();
+  }
+};
+
+db.withRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
+  try {
+    await db.ensureReady();
+    return await fn();
+  } catch (error: any) {
+    const message = String(error?.message || error);
+    const shouldRetry =
+      message.includes("SQLITE_MISUSE") ||
+      message.includes("Database handle is closed");
+
+    if (!shouldRetry) throw error;
+
+    try {
+      await db.disconnect();
+    } catch {
+      // ignore
+    }
+
+    await db.ensureReady();
+    return await fn();
+  }
 };
 
 db.backup = async (options?: { force: boolean }) => {

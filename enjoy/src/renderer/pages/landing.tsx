@@ -9,7 +9,9 @@ import {
 } from "@renderer/context";
 
 export default () => {
-  const { initialized, user } = useContext(AppSettingsProviderContext);
+  const { initialized, user, enterGuestMode } = useContext(
+    AppSettingsProviderContext
+  );
   const [started, setStarted] = useState(false);
   const db = useContext(DbProviderContext);
 
@@ -57,6 +59,17 @@ export default () => {
       </div>
       <div className="flex-1 flex justify-center">
         <LoginForm />
+      </div>
+      <div className="flex justify-center">
+        <Button
+          variant="secondary"
+          size="lg"
+          onClick={() => {
+            enterGuestMode?.();
+          }}
+        >
+          {t("continueAsGuest")}
+        </Button>
       </div>
     </div>
   );

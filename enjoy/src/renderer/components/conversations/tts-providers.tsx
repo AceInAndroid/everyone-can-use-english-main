@@ -740,4 +740,10 @@ export const TTS_PROVIDERS: { [key: string]: any } = {
     voices: ["alloy", "echo", "fable", "onyx", "nova", "shimmer"],
     configurable: ["model", "language", "voice", "baseUrl"],
   },
+  openai: {
+    name: "OpenAI",
+    description: t("youNeedToSetupApiKeyBeforeUsingOpenAI"),
+    models: ["openai/tts-1", "openai/tts-1-hd"],
+    voices: ["alloy", "echo", "fable", "onyx", "nova", "shimmer"],
+  },
 };

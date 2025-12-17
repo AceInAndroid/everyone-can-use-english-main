@@ -5,6 +5,7 @@ import {
   Video,
   PronunciationAssessment,
 } from "@main/db/models";
+import db from "@main/db";
 import {
   FindOptions,
   WhereOptions,
@@ -28,34 +29,36 @@ class RecordingsHandler {
     event: IpcMainEvent,
     options: FindOptions<Attributes<Recording>>
   ) {
-    return Recording.scope("withoutDeleted")
-      .findAll({
-        include: PronunciationAssessment,
-        order: [["createdAt", "DESC"]],
-        ...options,
-      })
-      .then((recordings) => {
-        if (!recordings) {
-          return [];
-        }
-        return recordings.map((recording) => recording.toJSON());
-      })
-      .catch((err) => {
-        event.sender.send("on-notification", {
-          type: "error",
-          message: err.message,
-        });
+    try {
+      const recordings = await db.withRetry(() =>
+        Recording.scope("withoutDeleted").findAll({
+          include: PronunciationAssessment,
+          order: [["createdAt", "DESC"]],
+          ...options,
+        })
+      );
+
+      if (!recordings) return [];
+      return recordings.map((recording) => recording.toJSON());
+    } catch (err: any) {
+      event.sender.send("on-notification", {
+        type: "error",
+        message: err.message,
       });
+      return [];
+    }
   }
 
   private async findOne(_event: IpcMainEvent, where: WhereOptions<Recording>) {
-    const recording = await Recording.scope("withoutDeleted").findOne({
-      include: PronunciationAssessment,
-      order: [["createdAt", "DESC"]],
-      where: {
-        ...where,
-      },
-    });
+    const recording = await db.withRetry(() =>
+      Recording.scope("withoutDeleted").findOne({
+        include: PronunciationAssessment,
+        order: [["createdAt", "DESC"]],
+        where: {
+          ...where,
+        },
+      })
+    );
     if (!recording) {
       throw new Error(t("models.recording.notFound"));
     }
@@ -67,11 +70,13 @@ class RecordingsHandler {
   }
 
   private async sync(_event: IpcMainEvent, id: string) {
-    const recording = await Recording.findOne({
-      where: {
-        id,
-      },
-    });
+    const recording = await db.withRetry(() =>
+      Recording.findOne({
+        where: {
+          id,
+        },
+      })
+    );
 
     if (!recording) {
       throw new Error(t("models.recording.notFound"));
@@ -81,9 +86,11 @@ class RecordingsHandler {
   }
 
   private async syncAll(event: IpcMainEvent) {
-    const recordings = await Recording.findAll({
-      where: { syncedAt: null },
-    });
+    const recordings = await db.withRetry(() =>
+      Recording.findAll({
+        where: { syncedAt: null },
+      })
+    );
     if (recordings.length == 0) return;
 
     event.sender.send("on-notification", {
@@ -92,7 +99,9 @@ class RecordingsHandler {
     });
 
     try {
-      await Promise.all(recordings.map((recording) => recording.sync()));
+      await Promise.all(
+        recordings.map((recording) => db.withRetry(() => recording.sync()))
+      );
     } catch (err) {
       logger.error("failed to sync recordings", err.message);
 
@@ -119,13 +128,15 @@ class RecordingsHandler {
       referenceText,
       duration,
     } = options;
-    const recording = await Recording.createFromBlob(options.blob, {
-      targetId,
-      targetType,
-      referenceId,
-      referenceText,
-      duration,
-    });
+    const recording = await db.withRetry(() =>
+      Recording.createFromBlob(options.blob, {
+        targetId,
+        targetType,
+        referenceId,
+        referenceText,
+        duration,
+      })
+    );
     if (!recording) {
       throw new Error(t("models.recording.failedToSave"));
     }
@@ -133,17 +144,19 @@ class RecordingsHandler {
   }
 
   private async destroy(_event: IpcMainEvent, id: string) {
-    const recording = await Recording.scope("withoutDeleted").findOne({
-      where: {
-        id,
-      },
-    });
+    const recording = await db.withRetry(() =>
+      Recording.scope("withoutDeleted").findOne({
+        where: {
+          id,
+        },
+      })
+    );
 
     if (!recording) {
       throw new Error(t("models.recording.notFound"));
     }
 
-    await recording.softDelete();
+    await db.withRetry(() => recording.softDelete());
   }
 
   private async destroyBulk(
@@ -160,23 +173,27 @@ class RecordingsHandler {
     }
     delete where.ids;
 
-    const recordings = await Recording.scope("withoutDeleted").findAll({
-      where,
-    });
+    const recordings = await db.withRetry(() =>
+      Recording.scope("withoutDeleted").findAll({
+        where,
+      })
+    );
     if (recordings.length === 0) {
       return;
     }
     for (const recording of recordings) {
-      await recording.softDelete();
+      await db.withRetry(() => recording.softDelete());
     }
   }
 
   private async upload(_event: IpcMainEvent, id: string) {
-    const recording = await Recording.scope("withoutDeleted").findOne({
-      where: {
-        id,
-      },
-    });
+    const recording = await db.withRetry(() =>
+      Recording.scope("withoutDeleted").findOne({
+        where: {
+          id,
+        },
+      })
+    );
 
     if (!recording) {
       throw new Error(t("models.recording.notFound"));
@@ -197,25 +214,29 @@ class RecordingsHandler {
       };
     }
 
-    return Recording.findOne({
-      attributes: [
-        [Sequelize.fn("count", Sequelize.col("id")), "count"],
-        [Sequelize.fn("SUM", Sequelize.col("recording.duration")), "duration"],
-      ],
-      where,
-    })
-      .then((stats) => {
-        if (!stats) {
-          return [];
-        }
-        return stats.toJSON();
-      })
-      .catch((err) => {
-        event.sender.send("on-notification", {
-          type: "error",
-          message: err.message,
-        });
+    try {
+      const stats = await db.withRetry(() =>
+        Recording.findOne({
+          attributes: [
+            [Sequelize.fn("count", Sequelize.col("id")), "count"],
+            [
+              Sequelize.fn("SUM", Sequelize.col("recording.duration")),
+              "duration",
+            ],
+          ],
+          where,
+        })
+      );
+
+      if (!stats) return [];
+      return stats.toJSON();
+    } catch (err: any) {
+      event.sender.send("on-notification", {
+        type: "error",
+        message: err.message,
       });
+      return [];
+    }
   }
 
   private async groupByDate(
@@ -224,31 +245,32 @@ class RecordingsHandler {
   ) {
     const { from, to } = options;
 
-    return Recording.findAll({
-      attributes: [
-        [Sequelize.fn("DATE", Sequelize.col("created_at")), "date"],
-        [Sequelize.fn("count", Sequelize.col("id")), "count"],
-      ],
-      group: ["date"],
-      order: [["date", "ASC"]],
-      where: {
-        createdAt: {
-          [Op.between]: [from, to],
-        },
-      },
-    })
-      .then((recordings) => {
-        if (!recordings) {
-          return [];
-        }
-        return recordings.map((recording) => recording.toJSON());
-      })
-      .catch((err) => {
-        event.sender.send("on-notification", {
-          type: "error",
-          message: err.message,
-        });
+    try {
+      const recordings = await db.withRetry(() =>
+        Recording.findAll({
+          attributes: [
+            [Sequelize.fn("DATE", Sequelize.col("created_at")), "date"],
+            [Sequelize.fn("count", Sequelize.col("id")), "count"],
+          ],
+          group: ["date"],
+          order: [["date", "ASC"]],
+          where: {
+            createdAt: {
+              [Op.between]: [from, to],
+            },
+          },
+        })
+      );
+
+      if (!recordings) return [];
+      return recordings.map((recording) => recording.toJSON());
+    } catch (err: any) {
+      event.sender.send("on-notification", {
+        type: "error",
+        message: err.message,
       });
+      return [];
+    }
   }
 
   private async groupByTarget(
@@ -261,47 +283,48 @@ class RecordingsHandler {
       to = dayjs().format(),
     } = options;
 
-    return Recording.findAll({
-      include: [
-        {
-          model: Audio,
-          attributes: ["name", "id"],
-        },
-        {
-          model: Video,
-          attributes: ["name", "id"],
-        },
-      ],
-      attributes: [
-        "targetId",
-        "targetType",
-        [Sequelize.fn("DATE", Sequelize.col("recording.created_at")), "date"],
-        [Sequelize.fn("COUNT", Sequelize.col("recording.id")), "count"],
-        [Sequelize.fn("SUM", Sequelize.col("recording.duration")), "duration"],
-      ],
-      group: ["date", "target_id", "target_type"],
-      order: [
-        ["date", "DESC"],
-        ["count", "DESC"],
-      ],
-      where: {
-        createdAt: {
-          [Op.between]: [from, to],
-        },
-      },
-    })
-      .then((recordings) => {
-        if (!recordings) {
-          return [];
-        }
-        return recordings.map((recording) => recording.toJSON());
-      })
-      .catch((err) => {
-        event.sender.send("on-notification", {
-          type: "error",
-          message: err.message,
-        });
+    try {
+      const recordings = await db.withRetry(() =>
+        Recording.findAll({
+          include: [
+            {
+              model: Audio,
+              attributes: ["name", "id"],
+            },
+            {
+              model: Video,
+              attributes: ["name", "id"],
+            },
+          ],
+          attributes: [
+            "targetId",
+            "targetType",
+            [Sequelize.fn("DATE", Sequelize.col("recording.created_at")), "date"],
+            [Sequelize.fn("COUNT", Sequelize.col("recording.id")), "count"],
+            [Sequelize.fn("SUM", Sequelize.col("recording.duration")), "duration"],
+          ],
+          group: ["date", "target_id", "target_type"],
+          order: [
+            ["date", "DESC"],
+            ["count", "DESC"],
+          ],
+          where: {
+            createdAt: {
+              [Op.between]: [from, to],
+            },
+          },
+        })
+      );
+
+      if (!recordings) return [];
+      return recordings.map((recording) => recording.toJSON());
+    } catch (err: any) {
+      event.sender.send("on-notification", {
+        type: "error",
+        message: err.message,
       });
+      return [];
+    }
   }
 
   private async groupBySegment(
@@ -309,53 +332,56 @@ class RecordingsHandler {
     targetId: string,
     targetType: string
   ) {
-    return Recording.findAll({
-      where: {
-        targetId,
-        targetType,
-      },
-      include: [
-        {
-          model: PronunciationAssessment,
-          attributes: [
-            [
-              Sequelize.fn("MAX", Sequelize.col("pronunciation_score")),
-              "pronunciationScore",
-            ],
+    try {
+      const stats = await db.withRetry(() =>
+        Recording.findAll({
+          where: {
+            targetId,
+            targetType,
+          },
+          include: [
+            {
+              model: PronunciationAssessment,
+              attributes: [
+                [
+                  Sequelize.fn("MAX", Sequelize.col("pronunciation_score")),
+                  "pronunciationScore",
+                ],
+              ],
+            },
           ],
-        },
-      ],
-      attributes: [
-        "targetId",
-        "targetType",
-        "referenceId",
-        "referenceText",
-        [Sequelize.fn("COUNT", Sequelize.col("reference_id")), "count"],
-        [Sequelize.fn("SUM", Sequelize.col("duration")), "duration"],
-      ],
-      group: ["referenceId"],
-      order: [["referenceId", "ASC"]],
-    })
-      .then((stats) => {
-        if (!stats) {
-          return [];
-        }
-        return stats.map((stat) => stat.toJSON());
-      })
-      .catch((err) => {
-        event.sender.send("on-notification", {
-          type: "error",
-          message: err.message,
-        });
+          attributes: [
+            "targetId",
+            "targetType",
+            "referenceId",
+            "referenceText",
+            [Sequelize.fn("COUNT", Sequelize.col("reference_id")), "count"],
+            [Sequelize.fn("SUM", Sequelize.col("duration")), "duration"],
+          ],
+          group: ["referenceId"],
+          order: [["referenceId", "ASC"]],
+        })
+      );
+
+      if (!stats) return [];
+      return stats.map((stat) => stat.toJSON());
+    } catch (err: any) {
+      event.sender.send("on-notification", {
+        type: "error",
+        message: err.message,
       });
+      return [];
+    }
   }
 
   private async statsForDeleteBulk() {
     // all recordings
-    const recordings = await Recording.scope("withoutDeleted").findAll({
-      include: PronunciationAssessment,
-      order: [["createdAt", "DESC"]],
-    });
+    const recordings = await db.withRetry(() =>
+      Recording.scope("withoutDeleted").findAll({
+        include: PronunciationAssessment,
+        order: [["createdAt", "DESC"]],
+      })
+    );
     // no assessment
     const noAssessment = recordings.filter((r) => !r.pronunciationAssessment);
     // score less than 90
@@ -388,17 +414,21 @@ class RecordingsHandler {
   ) {
     let target: Audio | Video;
     if (targetType === "Audio") {
-      target = await Audio.findOne({
-        where: {
-          id: targetId,
-        },
-      });
+      target = await db.withRetry(() =>
+        Audio.findOne({
+          where: {
+            id: targetId,
+          },
+        })
+      );
     } else {
-      target = await Video.findOne({
-        where: {
-          id: targetId,
-        },
-      });
+      target = await db.withRetry(() =>
+        Video.findOne({
+          where: {
+            id: targetId,
+          },
+        })
+      );
     }
 
     if (!target) {
@@ -406,25 +436,27 @@ class RecordingsHandler {
     }
 
     // query all recordings of the target
-    const recordings = await Recording.scope("withoutDeleted").findAll({
-      where: {
-        targetId,
-        targetType,
-      },
-      include: [
-        {
-          model: PronunciationAssessment,
-          attributes: [
-            [
-              Sequelize.fn("MAX", Sequelize.col("pronunciation_score")),
-              "pronunciationScore",
-            ],
-          ],
+    const recordings = await db.withRetry(() =>
+      Recording.scope("withoutDeleted").findAll({
+        where: {
+          targetId,
+          targetType,
         },
-      ],
-      group: ["referenceId"],
-      order: [["referenceId", "ASC"]],
-    });
+        include: [
+          {
+            model: PronunciationAssessment,
+            attributes: [
+              [
+                Sequelize.fn("MAX", Sequelize.col("pronunciation_score")),
+                "pronunciationScore",
+              ],
+            ],
+          },
+        ],
+        group: ["referenceId"],
+        order: [["referenceId", "ASC"]],
+      })
+    );
 
     if (!recordings || recordings.length === 0) {
       throw new Error(t("models.recording.notFound"));
@@ -445,20 +477,23 @@ class RecordingsHandler {
   }
 
   register() {
-    ipcMain.handle("recordings-find-all", this.findAll);
-    ipcMain.handle("recordings-find-one", this.findOne);
-    ipcMain.handle("recordings-sync", this.sync);
-    ipcMain.handle("recordings-sync-all", this.syncAll);
-    ipcMain.handle("recordings-create", this.create);
-    ipcMain.handle("recordings-destroy", this.destroy);
-    ipcMain.handle("recordings-destroy-bulk", this.destroyBulk);
-    ipcMain.handle("recordings-upload", this.upload);
-    ipcMain.handle("recordings-stats", this.stats);
-    ipcMain.handle("recordings-group-by-date", this.groupByDate);
-    ipcMain.handle("recordings-group-by-target", this.groupByTarget);
-    ipcMain.handle("recordings-group-by-segment", this.groupBySegment);
-    ipcMain.handle("recordings-stats-for-delete-bulk", this.statsForDeleteBulk);
-    ipcMain.handle("recordings-export", this.export);
+    ipcMain.handle("recordings-find-all", this.findAll.bind(this));
+    ipcMain.handle("recordings-find-one", this.findOne.bind(this));
+    ipcMain.handle("recordings-sync", this.sync.bind(this));
+    ipcMain.handle("recordings-sync-all", this.syncAll.bind(this));
+    ipcMain.handle("recordings-create", this.create.bind(this));
+    ipcMain.handle("recordings-destroy", this.destroy.bind(this));
+    ipcMain.handle("recordings-destroy-bulk", this.destroyBulk.bind(this));
+    ipcMain.handle("recordings-upload", this.upload.bind(this));
+    ipcMain.handle("recordings-stats", this.stats.bind(this));
+    ipcMain.handle("recordings-group-by-date", this.groupByDate.bind(this));
+    ipcMain.handle("recordings-group-by-target", this.groupByTarget.bind(this));
+    ipcMain.handle("recordings-group-by-segment", this.groupBySegment.bind(this));
+    ipcMain.handle(
+      "recordings-stats-for-delete-bulk",
+      this.statsForDeleteBulk.bind(this)
+    );
+    ipcMain.handle("recordings-export", this.export.bind(this));
   }
 
   unregister() {

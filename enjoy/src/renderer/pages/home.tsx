@@ -20,16 +20,20 @@ export default () => {
     "@nytimes",
   ]);
 
-  const { webApi } = useContext(AppSettingsProviderContext);
+  const { webApi, user } = useContext(AppSettingsProviderContext);
+  const isGuest = Boolean(user?.isGuest);
 
   useEffect(() => {
     if (!webApi) return;
 
-    webApi.config("ytb_channels").then((channels) => {
-      if (!channels) return;
+    webApi
+      .config("ytb_channels")
+      .then((channels) => {
+        if (!channels) return;
 
-      setChannels(channels);
-    });
+        setChannels(channels);
+      })
+      .catch(() => {});
   }, [webApi]);
 
   return (
@@ -38,7 +42,7 @@ export default () => {
       <UpgradeNotice />
       <div className="max-w-5xl mx-auto px-4 py-6 lg:px-8">
         <div className="space-y-4">
-          <EnrollmentSegment />
+          {!isGuest && <EnrollmentSegment />}
           <AudiosSegment />
           <VideosSegment />
           <DocumentsSegment />

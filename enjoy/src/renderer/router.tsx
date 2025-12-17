@@ -26,6 +26,7 @@ import Course from "./pages/courses/show";
 import Chapter from "./pages/courses/chapter";
 import Chats from "./pages/chats";
 import { ProtectedPage } from "./pages/protected-page";
+import { AuthenticatedPage } from "./pages/authenticated-page";
 
 export default createHashRouter([
   {
@@ -46,7 +47,9 @@ export default createHashRouter([
         path: "/chats",
         element: (
           <ProtectedPage>
-            <Chats />
+            <AuthenticatedPage redirectPath="/">
+              <Chats />
+            </AuthenticatedPage>
           </ProtectedPage>
         ),
       },
@@ -54,7 +57,9 @@ export default createHashRouter([
         path: "/courses",
         element: (
           <ProtectedPage>
-            <Courses />
+            <AuthenticatedPage redirectPath="/">
+              <Courses />
+            </AuthenticatedPage>
           </ProtectedPage>
         ),
       },
@@ -62,7 +67,9 @@ export default createHashRouter([
         path: "/courses/:id",
         element: (
           <ProtectedPage>
-            <Course />
+            <AuthenticatedPage redirectPath="/">
+              <Course />
+            </AuthenticatedPage>
           </ProtectedPage>
         ),
       },
@@ -70,7 +77,9 @@ export default createHashRouter([
         path: "/courses/:id/chapters/:sequence",
         element: (
           <ProtectedPage>
-            <Chapter />
+            <AuthenticatedPage redirectPath="/">
+              <Chapter />
+            </AuthenticatedPage>
           </ProtectedPage>
         ),
       },
@@ -78,7 +87,9 @@ export default createHashRouter([
         path: "/community",
         element: (
           <ProtectedPage>
-            <Community />
+            <AuthenticatedPage redirectPath="/">
+              <Community />
+            </AuthenticatedPage>
           </ProtectedPage>
         ),
       },
@@ -86,7 +97,9 @@ export default createHashRouter([
         path: "/users/:id",
         element: (
           <ProtectedPage>
-            <User />
+            <AuthenticatedPage redirectPath="/">
+              <User />
+            </AuthenticatedPage>
           </ProtectedPage>
         ),
       },
@@ -94,7 +107,9 @@ export default createHashRouter([
         path: "/profile",
         element: (
           <ProtectedPage>
-            <Profile />
+            <AuthenticatedPage redirectPath="/">
+              <Profile />
+            </AuthenticatedPage>
           </ProtectedPage>
         ),
       },

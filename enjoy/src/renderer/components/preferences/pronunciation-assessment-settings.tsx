@@ -17,9 +17,10 @@ import { PronunciationAssessmentEngineEnum } from "@/types/enums";
 import { useContext, useMemo } from "react";
 
 export const PronunciationAssessmentSettings = () => {
-  const { EnjoyApp } = useContext(AppSettingsProviderContext);
+  const { EnjoyApp, user } = useContext(AppSettingsProviderContext);
   const { pronunciationAssessmentConfig, setPronunciationAssessmentConfig } =
     useContext(AISettingsProviderContext);
+  const isGuest = Boolean(user?.isGuest);
 
   const config = useMemo(() => {
     return (
@@ -141,15 +142,18 @@ export const PronunciationAssessmentSettings = () => {
           <SelectTrigger className="min-w-fit">
             <SelectValue placeholder="service"></SelectValue>
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={PronunciationAssessmentEngineEnum.AZURE}>
-              Azure
-            </SelectItem>
-            <SelectItem value={PronunciationAssessmentEngineEnum.WHISPER_LOCAL}>
-              {t("localWhisper")}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        <SelectContent>
+          <SelectItem
+            disabled={isGuest}
+            value={PronunciationAssessmentEngineEnum.AZURE}
+          >
+            Azure
+          </SelectItem>
+          <SelectItem value={PronunciationAssessmentEngineEnum.WHISPER_LOCAL}>
+            {t("localWhisper")}
+          </SelectItem>
+        </SelectContent>
+      </Select>
 
         {config.engine === PronunciationAssessmentEngineEnum.WHISPER_LOCAL && (
           <Button onClick={handleCheckLocal} variant="secondary" size="sm">

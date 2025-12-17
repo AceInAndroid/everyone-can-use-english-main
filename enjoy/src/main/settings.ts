@@ -77,6 +77,14 @@ const sessions = () => {
 
 export default {
   registerIpcHandlers: () => {
+    ipcMain.handle("app-settings-get", (_event, key: string) => {
+      return settings.getSync(key);
+    });
+
+    ipcMain.handle("app-settings-set", (_event, key: string, value: any) => {
+      settings.setSync(key, value);
+    });
+
     ipcMain.handle("app-settings-get-library", (_event) => {
       libraryPath();
       return settings.getSync(AppSettingsKeyEnum.LIBRARY);

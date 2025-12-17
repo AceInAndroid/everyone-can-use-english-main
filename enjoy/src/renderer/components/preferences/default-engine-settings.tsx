@@ -27,7 +27,8 @@ export const DefaultEngineSettings = () => {
   const { currentGptEngine, setGptEngine, openai } = useContext(
     AISettingsProviderContext
   );
-  const { webApi } = useContext(AppSettingsProviderContext);
+  const { webApi, user } = useContext(AppSettingsProviderContext);
+  const isGuest = Boolean(user?.isGuest);
   const [providers, setProviders] = useState<any>(GPT_PROVIDERS);
   const [editing, setEditing] = useState(false);
 
@@ -47,10 +48,16 @@ export const DefaultEngineSettings = () => {
   const form = useForm<z.infer<typeof gptEngineSchema>>({
     resolver: zodResolver(gptEngineSchema),
     values: {
-      name: currentGptEngine.name as "enjoyai" | "openai",
+      name: (isGuest ? "openai" : currentGptEngine.name) as "enjoyai" | "openai",
       models: currentGptEngine.models || {},
     },
   });
+
+  useEffect(() => {
+    if (!isGuest) return;
+    if (form.getValues("name") === "openai") return;
+    form.setValue("name", "openai");
+  }, [isGuest]);
 
   const modelOptions = () => {
     if (form.watch("name") === "openai") {
@@ -86,6 +93,7 @@ export const DefaultEngineSettings = () => {
   };
 
   useEffect(() => {
+    if (isGuest) return;
     webApi
       .config("gpt_providers")
       .then((data) => {
@@ -131,7 +139,9 @@ export const DefaultEngineSettings = () => {
                           ></SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="enjoyai">EnjoyAI</SelectItem>
+                          {!isGuest && (
+                            <SelectItem value="enjoyai">EnjoyAI</SelectItem>
+                          )}
                           <SelectItem value="openai">OpenAI</SelectItem>
                         </SelectContent>
                       </Select>
@@ -139,7 +149,8 @@ export const DefaultEngineSettings = () => {
                     <FormMessage />
                     <div className="text-xs text-muted-foreground">
                       {form.watch("name") === "openai" && t("openAiEngineTips")}
-                      {form.watch("name") === "enjoyai" &&
+                      {!isGuest &&
+                        form.watch("name") === "enjoyai" &&
                         t("enjoyAiEngineTips")}
                     </div>
                   </FormItem>

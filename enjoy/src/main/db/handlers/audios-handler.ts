@@ -2,6 +2,7 @@ import { ipcMain, IpcMainEvent } from "electron";
 import { Audio, Transcription } from "@main/db/models";
 import { FindOptions, WhereOptions, Attributes, Op } from "sequelize";
 import downloader from "@main/downloader";
+import db from "@main/db";
 import log from "@main/logger";
 import { t } from "i18next";
 import youtubedr from "@main/youtubedr";
@@ -23,20 +24,22 @@ class AudiosHandler {
         [Op.like]: `%${query}%`,
       };
     }
-    const audios = await Audio.findAll({
-      order: [["updatedAt", "DESC"]],
-      include: [
-        {
-          association: "transcription",
-          model: Transcription,
-          where: { targetType: "Audio" },
-          required: false,
-        },
-      ],
-      where,
-      ...options,
-      group: ["Audio.id"],
-    });
+    const audios = await db.withRetry(() =>
+      Audio.findAll({
+        order: [["updatedAt", "DESC"]],
+        include: [
+          {
+            association: "transcription",
+            model: Transcription,
+            where: { targetType: "Audio" },
+            required: false,
+          },
+        ],
+        where,
+        ...options,
+        group: ["Audio.id"],
+      })
+    );
 
     if (!audios) {
       return [];
@@ -48,11 +51,13 @@ class AudiosHandler {
     _event: IpcMainEvent,
     where: WhereOptions<Attributes<Audio>>
   ) {
-    const audio = await Audio.findOne({
-      where: {
-        ...where,
-      },
-    });
+    const audio = await db.withRetry(() =>
+      Audio.findOne({
+        where: {
+          ...where,
+        },
+      })
+    );
     if (!audio) return;
 
     if (!audio.isSynced) {
@@ -88,24 +93,28 @@ class AudiosHandler {
     }
 
     try {
-      const audio = await Audio.buildFromLocalFile(file, {
-        source,
-        name: params.name,
-        coverUrl: params.coverUrl,
-        compressing: params.compressing,
-      });
+      const audio = await db.withRetry(() =>
+        Audio.buildFromLocalFile(file, {
+          source,
+          name: params.name,
+          coverUrl: params.coverUrl,
+          compressing: params.compressing,
+        })
+      );
 
       // create transcription if originalText is provided
       const { originalText } = params;
       if (originalText) {
-        await Transcription.create({
-          targetType: "Audio",
-          targetId: audio.id,
-          targetMd5: audio.md5,
-          result: {
-            originalText,
-          },
-        });
+        await db.withRetry(() =>
+          Transcription.create({
+            targetType: "Audio",
+            targetId: audio.id,
+            targetMd5: audio.md5,
+            result: {
+              originalText,
+            },
+          }).then(() => undefined)
+        );
       }
 
       return audio.toJSON();
@@ -122,32 +131,34 @@ class AudiosHandler {
   ) {
     const { name, description, metadata, language, coverUrl, source } = params;
 
-    const audio = await Audio.findByPk(id);
+    const audio = await db.withRetry(() => Audio.findByPk(id));
 
     if (!audio) {
       throw new Error(t("models.audio.notFound"));
     }
-    return await audio.update({
-      name,
-      description,
-      metadata,
-      language,
-      coverUrl,
-      source,
-    });
+    return await db.withRetry(() =>
+      audio.update({
+        name,
+        description,
+        metadata,
+        language,
+        coverUrl,
+        source,
+      })
+    );
   }
 
   private async destroy(_event: IpcMainEvent, id: string) {
-    const audio = await Audio.findByPk(id);
+    const audio = await db.withRetry(() => Audio.findByPk(id));
 
     if (!audio) {
       throw new Error(t("models.audio.notFound"));
     }
-    return await audio.destroy();
+    return await db.withRetry(() => audio.destroy());
   }
 
   private async upload(event: IpcMainEvent, id: string) {
-    const audio = await Audio.findByPk(id);
+    const audio = await db.withRetry(() => Audio.findByPk(id));
     if (!audio) {
       throw new Error(t("models.audio.notFound"));
     }

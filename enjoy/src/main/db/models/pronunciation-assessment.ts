@@ -18,6 +18,7 @@ import { Recording, UserSetting } from "@main/db/models";
 import { Client } from "@/api";
 import settings from "@main/settings";
 import log from "@main/logger";
+import db from "@main/db";
 
 @Table({
   modelName: "PronunciationAssessment",
@@ -106,9 +107,8 @@ export class PronunciationAssessment extends Model<PronunciationAssessment> {
       logger: log.scope("api/client"),
     });
 
-    return webApi.syncPronunciationAssessment(this.toJSON()).then(() => {
-      this.update({ syncedAt: new Date() });
-    });
+    await webApi.syncPronunciationAssessment(this.toJSON());
+    await db.withRetry(() => this.update({ syncedAt: new Date() }));
   }
 
   @AfterFind

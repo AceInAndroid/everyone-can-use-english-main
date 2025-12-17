@@ -5,6 +5,7 @@ type UserType = {
   balance?: number;
   avatarUrl?: string;
   accessToken?: string;
+  isGuest?: boolean;
   recordingsCount?: number;
   recordingsDuration?: number;
   hasMixin?: boolean;

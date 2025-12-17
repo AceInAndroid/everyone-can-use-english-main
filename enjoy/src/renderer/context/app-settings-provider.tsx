@@ -40,6 +40,7 @@ type AppSettingsProviderState = {
   latestVersion?: string;
   libraryPath?: string;
   login?: (user: UserType) => void;
+  enterGuestMode?: () => Promise<void>;
   logout?: () => void;
   refreshAccount?: () => Promise<void>;
   setLibraryPath?: (path: string) => Promise<void>;
@@ -106,6 +107,7 @@ export const AppSettingsProvider = ({
   const [displayPreferences, setDisplayPreferences] = useState<boolean>(false);
 
   const db = useContext(DbProviderContext);
+  const isGuest = Boolean(user?.isGuest);
 
   const fetchLanguages = async () => {
     const language = await EnjoyApp.userSettings.get(
@@ -175,6 +177,23 @@ export const AppSettingsProvider = ({
       // Set current user to App settings
       EnjoyApp.appSettings.setUser({ id: user.id, name: user.name });
     }
+  };
+
+  const enterGuestMode = async () => {
+    let guestId = (await EnjoyApp.appSettings.get("guest.id")) as string;
+    if (!guestId || typeof guestId !== "string") {
+      guestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+      await EnjoyApp.appSettings.set("guest.id", guestId);
+    }
+
+    const guestUser: UserType = {
+      id: guestId,
+      name: t("guest"),
+      isGuest: true,
+    };
+
+    setUser(guestUser);
+    await EnjoyApp.appSettings.setUser(guestUser);
   };
 
   const logout = () => {
@@ -261,6 +280,7 @@ export const AppSettingsProvider = ({
   };
 
   const refreshAccount = async () => {
+    if (!user?.accessToken) return;
     webApi.me().then((u) => {
       setUser({
         ...user,
@@ -314,13 +334,19 @@ export const AppSettingsProvider = ({
     if (!webApi) return;
     if (ipaMappings && latestVersion) return;
 
-    webApi.config("ipa_mappings").then((mappings) => {
-      if (mappings) setIpaMappings(mappings);
-    });
+    webApi
+      .config("ipa_mappings")
+      .then((mappings) => {
+        if (mappings) setIpaMappings(mappings);
+      })
+      .catch(() => {});
 
-    webApi.config("app_version").then((config) => {
-      if (config.version) setLatestVersion(config.version);
-    });
+    webApi
+      .config("app_version")
+      .then((config) => {
+        if (config.version) setLatestVersion(config.version);
+      })
+      .catch(() => {});
   }, [webApi]);
 
   useEffect(() => {
@@ -328,7 +354,9 @@ export const AppSettingsProvider = ({
 
     db.connect().then(async () => {
       // Login via API, update profile to DB
-      if (user.accessToken) {
+      if (user.isGuest) {
+        return;
+      } else if (user.accessToken) {
         EnjoyApp.userSettings.set(UserSettingKeyEnum.PROFILE, user);
         createCable(user.accessToken);
       } else {
@@ -358,16 +386,17 @@ export const AppSettingsProvider = ({
         EnjoyApp,
         version,
         latestVersion,
-        webApi,
-        apiUrl,
-        setApiUrl: setApiUrlHandler,
-        user,
-        login,
-        logout: () => setLoggingOut(true),
-        refreshAccount,
-        libraryPath,
-        setLibraryPath: setLibraryPathHandler,
-        proxy,
+      webApi,
+      apiUrl,
+      setApiUrl: setApiUrlHandler,
+      user,
+      login,
+      enterGuestMode,
+      logout: () => setLoggingOut(true),
+      refreshAccount,
+      libraryPath,
+      setLibraryPath: setLibraryPathHandler,
+      proxy,
         setProxy: setProxyConfigHandler,
         vocabularyConfig,
         setVocabularyConfig: setVocabularyConfigHandler,
@@ -388,10 +417,12 @@ export const AppSettingsProvider = ({
       <AlertDialog open={loggingOut} onOpenChange={setLoggingOut}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("logout")}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {isGuest ? t("exitGuestMode") : t("logout")}
+            </AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogDescription>
-            {t("logoutConfirmation")}
+            {isGuest ? t("exitGuestModeConfirmation") : t("logoutConfirmation")}
           </AlertDialogDescription>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
@@ -402,31 +433,33 @@ export const AppSettingsProvider = ({
                 redirect("/landing");
               }}
             >
-              {t("logout")}
+              {isGuest ? t("exitGuestMode") : t("logout")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog
-        open={displayDepositDialog}
-        onOpenChange={setDisplayDepositDialog}
-      >
-        <DialogContent className="max-h-full overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t("deposit")}</DialogTitle>
-            <DialogDescription>{t("depositDescription")}</DialogDescription>
-          </DialogHeader>
+      {!isGuest && (
+        <Dialog
+          open={displayDepositDialog}
+          onOpenChange={setDisplayDepositDialog}
+        >
+          <DialogContent className="max-h-full overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{t("deposit")}</DialogTitle>
+              <DialogDescription>{t("depositDescription")}</DialogDescription>
+            </DialogHeader>
 
-          {displayDepositDialog && <Deposit />}
+            {displayDepositDialog && <Deposit />}
 
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="secondary">{t("close")}</Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="secondary">{t("close")}</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </AppSettingsProviderContext.Provider>
   );
 };

@@ -24,6 +24,8 @@ export const SttSettings = () => {
     setEchogardenSttConfig,
   } = useContext(AISettingsProviderContext);
   const { EnjoyApp } = useContext(AppSettingsProviderContext);
+  const { user } = useContext(AppSettingsProviderContext);
+  const isGuest = Boolean(user?.isGuest);
 
   const [editing, setEditing] = useState(false);
 
@@ -106,10 +108,16 @@ export const SttSettings = () => {
             <SelectItem value={SttEngineOptionEnum.LOCAL}>
               {t("local")}
             </SelectItem>
-            <SelectItem value={SttEngineOptionEnum.ENJOY_AZURE}>
+            <SelectItem
+              disabled={isGuest}
+              value={SttEngineOptionEnum.ENJOY_AZURE}
+            >
               {t("enjoyAzure")}
             </SelectItem>
-            <SelectItem value={SttEngineOptionEnum.ENJOY_CLOUDFLARE}>
+            <SelectItem
+              disabled={isGuest}
+              value={SttEngineOptionEnum.ENJOY_CLOUDFLARE}
+            >
               {t("enjoyCloudflare")}
             </SelectItem>
             <SelectItem value={SttEngineOptionEnum.OPENAI}>OpenAI</SelectItem>

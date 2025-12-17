@@ -60,6 +60,8 @@ export const TranscriptionCreateForm = (props: {
     originalText,
   } = props;
   const { learningLanguage } = useContext(AppSettingsProviderContext);
+  const { user } = useContext(AppSettingsProviderContext);
+  const isGuest = Boolean(user?.isGuest);
   const { sttEngine, echogardenSttConfig } = useContext(
     AISettingsProviderContext
   );
@@ -171,10 +173,16 @@ export const TranscriptionCreateForm = (props: {
                   <SelectItem value={SttEngineOptionEnum.LOCAL}>
                     {t("local")}
                   </SelectItem>
-                  <SelectItem value={SttEngineOptionEnum.ENJOY_AZURE}>
+                  <SelectItem
+                    disabled={isGuest}
+                    value={SttEngineOptionEnum.ENJOY_AZURE}
+                  >
                     {t("enjoyAzure")}
                   </SelectItem>
-                  <SelectItem value={SttEngineOptionEnum.ENJOY_CLOUDFLARE}>
+                  <SelectItem
+                    disabled={isGuest}
+                    value={SttEngineOptionEnum.ENJOY_CLOUDFLARE}
+                  >
                     {t("enjoyCloudflare")}
                   </SelectItem>
                   <SelectItem value={SttEngineOptionEnum.OPENAI}>
@@ -203,9 +211,11 @@ export const TranscriptionCreateForm = (props: {
                   )}
 
                 {form.watch("service") === SttEngineOptionEnum.ENJOY_AZURE &&
+                  !isGuest &&
                   t("enjoyAzureSpeechToTextDescription")}
                 {form.watch("service") ===
                   SttEngineOptionEnum.ENJOY_CLOUDFLARE &&
+                  !isGuest &&
                   t("enjoyCloudflareSpeechToTextDescription")}
                 {form.watch("service") === SttEngineOptionEnum.OPENAI &&
                   t("openaiSpeechToTextDescription")}

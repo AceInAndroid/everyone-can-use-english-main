@@ -6,22 +6,20 @@ import { AppSettingsProviderContext } from "@renderer/context";
 import { CourseCard } from "./course-card";
 
 export const EnrollmentSegment = () => {
-  const { webApi } = useContext(AppSettingsProviderContext);
+  const { webApi, user } = useContext(AppSettingsProviderContext);
   const [enrollments, setEnrollments] = useState<EnrollmentType[]>([]);
-  const fetchEnrollments = async () => {
-    webApi
-      .enrollments()
-      .then(({ enrollments }) => {
-        setEnrollments(enrollments);
-      })
-      .catch((err) => {
-        console.error(err.message);
-      });
-  };
+  const canFetch = Boolean(webApi && user?.accessToken && !user?.isGuest);
 
   useEffect(() => {
-    fetchEnrollments();
-  }, []);
+    if (!canFetch) return;
+
+    webApi
+      .enrollments()
+      .then(({ enrollments }) => setEnrollments(enrollments))
+      .catch((err) => console.error(err.message));
+  }, [canFetch, webApi]);
+
+  if (!canFetch) return null;
 
   if (!enrollments?.length) return null;
 

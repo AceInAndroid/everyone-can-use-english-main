@@ -2,6 +2,7 @@ import { ipcMain, IpcMainEvent } from "electron";
 import { Video, Transcription } from "@main/db/models";
 import { FindOptions, WhereOptions, Attributes, Op } from "sequelize";
 import downloader from "@main/downloader";
+import db from "@main/db";
 import log from "@main/logger";
 import { t } from "i18next";
 import youtubedr from "@main/youtubedr";
@@ -23,20 +24,22 @@ class VideosHandler {
         [Op.like]: `%${query}%`,
       };
     }
-    const videos = await Video.findAll({
-      order: [["updatedAt", "DESC"]],
-      include: [
-        {
-          association: "transcription",
-          model: Transcription,
-          where: { targetType: "Video" },
-          required: false,
-        },
-      ],
-      where,
-      ...options,
-      group: ["Video.id"],
-    });
+    const videos = await db.withRetry(() =>
+      Video.findAll({
+        order: [["updatedAt", "DESC"]],
+        include: [
+          {
+            association: "transcription",
+            model: Transcription,
+            where: { targetType: "Video" },
+            required: false,
+          },
+        ],
+        where,
+        ...options,
+        group: ["Video.id"],
+      })
+    );
     if (!videos) {
       return [];
     }
@@ -47,11 +50,13 @@ class VideosHandler {
     _event: IpcMainEvent,
     where: WhereOptions<Attributes<Video>>
   ) {
-    const video = await Video.findOne({
-      where: {
-        ...where,
-      },
-    });
+    const video = await db.withRetry(() =>
+      Video.findOne({
+        where: {
+          ...where,
+        },
+      })
+    );
     if (!video) return;
 
     if (!video.isSynced) {
@@ -91,13 +96,14 @@ class VideosHandler {
       }
     }
 
-    return Video.buildFromLocalFile(file, {
-      source,
-      ...params,
-    })
-      .then((video) => {
-        return video.toJSON();
-      })
+    return db
+      .withRetry(() =>
+        Video.buildFromLocalFile(file, {
+          source,
+          ...params,
+        })
+      )
+      .then((video) => video.toJSON())
       .catch((err) => {
         logger.error(err);
         throw new Error(t("models.video.failedToAdd", { error: err.message }));
@@ -111,11 +117,13 @@ class VideosHandler {
   ) {
     const { name, description, metadata, language, coverUrl, source } = params;
 
-    const video = await Video.findByPk(id);
+    const video = await db.withRetry(() => Video.findByPk(id));
     if (!video) {
       throw new Error(t("models.video.notFound"));
     }
-    video.update({ name, description, metadata, language, coverUrl, source });
+    await db.withRetry(() =>
+      video.update({ name, description, metadata, language, coverUrl, source })
+    );
   }
 
   private async destroy(event: IpcMainEvent, id: string) {

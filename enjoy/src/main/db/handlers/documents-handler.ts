@@ -2,6 +2,7 @@ import { ipcMain, IpcMainEvent } from "electron";
 import { Document } from "@main/db/models";
 import { FindOptions, WhereOptions, Attributes, Op } from "sequelize";
 import downloader from "@main/downloader";
+import db from "@main/db";
 import log from "@main/logger";
 import { t } from "i18next";
 
@@ -21,14 +22,16 @@ class DocumentsHandler {
         [Op.like]: `%${query}%`,
       };
     }
-    const documents = await Document.findAll({
-      order: [
-        ["lastReadAt", "DESC"],
-        ["updatedAt", "DESC"],
-      ],
-      where,
-      ...options,
-    });
+    const documents = await db.withRetry(() =>
+      Document.findAll({
+        order: [
+          ["lastReadAt", "DESC"],
+          ["updatedAt", "DESC"],
+        ],
+        where,
+        ...options,
+      })
+    );
 
     if (!documents) {
       return [];
@@ -40,11 +43,13 @@ class DocumentsHandler {
     _event: IpcMainEvent,
     where: WhereOptions<Attributes<Document>>
   ) {
-    const document = await Document.findOne({
-      where: {
-        ...where,
-      },
-    });
+    const document = await db.withRetry(() =>
+      Document.findOne({
+        where: {
+          ...where,
+        },
+      })
+    );
     if (!document) return;
 
     if (!document.isSynced) {
@@ -72,11 +77,13 @@ class DocumentsHandler {
     }
 
     try {
-      const document = await Document.buildFromLocalFile(uri, {
-        title,
-        config,
-        source,
-      });
+      const document = await db.withRetry(() =>
+        Document.buildFromLocalFile(uri, {
+          title,
+          config,
+          source,
+        })
+      );
 
       return document.toJSON();
     } catch (err) {
@@ -92,31 +99,33 @@ class DocumentsHandler {
   ) {
     const { title, metadata, lastReadPosition, lastReadAt, config } = params;
 
-    const document = await Document.findByPk(id);
+    const document = await db.withRetry(() => Document.findByPk(id));
 
     if (!document) {
       throw new Error(t("models.document.notFound"));
     }
-    return await document.update({
-      title,
-      metadata,
-      lastReadPosition,
-      lastReadAt,
-      config,
-    });
+    return await db.withRetry(() =>
+      document.update({
+        title,
+        metadata,
+        lastReadPosition,
+        lastReadAt,
+        config,
+      })
+    );
   }
 
   private async destroy(_event: IpcMainEvent, id: string) {
-    const document = await Document.findByPk(id);
+    const document = await db.withRetry(() => Document.findByPk(id));
 
     if (!document) {
       throw new Error(t("models.document.notFound"));
     }
-    return await document.destroy();
+    return await db.withRetry(() => document.destroy());
   }
 
   private async upload(event: IpcMainEvent, id: string) {
-    const document = await Document.findByPk(id);
+    const document = await db.withRetry(() => Document.findByPk(id));
     if (!document) {
       throw new Error(t("models.document.notFound"));
     }

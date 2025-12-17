@@ -24,11 +24,15 @@ import {
   DictSettings,
   DiskUsage,
 } from "@renderer/components";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { Tooltip } from "react-tooltip";
 import { EmailSettings } from "./email-settings";
+import { AppSettingsProviderContext } from "@renderer/context";
 
 export const Preferences = () => {
+  const { user } = useContext(AppSettingsProviderContext);
+  const isGuest = Boolean(user?.isGuest);
+
   const TABS = [
     {
       value: "basic",
@@ -129,7 +133,7 @@ export const Preferences = () => {
       label: t("about"),
       component: () => <About />,
     },
-  ];
+  ].filter((tab) => !(isGuest && tab.value === "account"));
 
   const [activeTab, setActiveTab] = useState<string>("basic");
 
