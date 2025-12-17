@@ -36,6 +36,18 @@ export const MediaAddButton = (props: { type?: "Audio" | "Video" }) => {
 
   const navigate = useNavigate();
 
+  const hasWma = () => {
+    const list = files.length > 0 ? files : uri ? [uri] : [];
+    return list.some((p) => (p || "").toLowerCase().endsWith(".wma"));
+  };
+
+  useEffect(() => {
+    if (!compressing && hasWma()) {
+      setCompressing(true);
+      toast.warning(t("wmaWillBeTranscoded"));
+    }
+  }, [files, uri]);
+
   const handleOpen = (value: boolean) => {
     if (submitting) {
       setOpen(true);
@@ -184,6 +196,7 @@ export const MediaAddButton = (props: { type?: "Audio" | "Video" }) => {
         <div className="flex items-center space-x-2 mb-2">
           <Switch
             checked={compressing}
+            disabled={hasWma()}
             onCheckedChange={(value) => setCompressing(value)}
           />
           <span className="text-sm text-muted-foreground">

@@ -634,6 +634,7 @@
   "waveformIsDecoded": "Forma de onda decodificada",
   "decodingWaveform": "Decodificando forma de onda",
   "failedToDecodeWaveform": "Error al decodificar la forma de onda",
+  "wmaWillBeTranscoded": "El formato WMA no es compatible para la forma de onda/reproducción. Se transcodificará automáticamente a MP3.",
   "transcribedSuccessfully": "Transcrito con éxito",
   "transcribing": "Transcribiendo",
   "notTranscribedYet": "Aún no transcrito",

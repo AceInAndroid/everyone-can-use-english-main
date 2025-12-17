@@ -10,6 +10,7 @@
     "enjoy:add": "yarn workspace enjoy add",
     "enjoy:remove": "yarn workspace enjoy remove",
     "enjoy:dev": "yarn workspace enjoy dev",
+    "enjoy:dev:remote": "yarn workspace enjoy dev:remote",
     "enjoy:start": "yarn workspace enjoy start",
     "enjoy:test": "yarn workspace enjoy test",
     "enjoy:test:main": "yarn workspace enjoy test:main",

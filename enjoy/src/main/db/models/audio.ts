@@ -320,7 +320,7 @@ export class Audio extends Model<Audio> {
       compressing?: boolean;
     }
   ): Promise<Audio | Video> {
-    const { compressing = true } = params || {};
+    let { compressing = true } = params || {};
     // Check if file exists
     try {
       fs.accessSync(filePath, fs.constants.R_OK);
@@ -334,6 +334,13 @@ export class Audio extends Model<Audio> {
       return Video.buildFromLocalFile(filePath, params);
     } else if (!AudioFormats.includes(extname.split(".").pop() as string)) {
       throw new Error(t("models.audio.fileNotSupported", { file: filePath }));
+    }
+
+    // Electron/WebAudio typically can't decode WMA; keepOriginalMedia would lead to
+    // "Failed to decode waveform". Force compression (transcode to mp3) for WMA.
+    if (extname === ".wma" && !compressing) {
+      logger.warn("WMA detected, force compressing to mp3 for compatibility.");
+      compressing = true;
     }
 
     const md5 = await hashFile(filePath, { algo: "md5" });

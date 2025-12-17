@@ -634,6 +634,7 @@
   "waveformIsDecoded": "波形已解码",
   "decodingWaveform": "正在解码波形",
   "failedToDecodeWaveform": "解码波形失败",
+  "wmaWillBeTranscoded": "WMA 格式无法用于波形/播放，将自动转码为 MP3。",
   "transcribedSuccessfully": "语音转文本成功",
   "transcribing": "正在语音转文本",
   "notTranscribedYet": "尚未语音转文本",
