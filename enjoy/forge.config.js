@@ -2,7 +2,9 @@ import { VitePlugin } from "@electron-forge/plugin-vite";
 import os from "os";
 import { FusesPlugin } from "@electron-forge/plugin-fuses";
 import { FuseV1Options, FuseVersion } from "@electron/fuses";
-import pkg from "./package.json" with { type: "json" };
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pkg = require("./package.json");
 
 const config = {
   packagerConfig: {
@@ -13,6 +15,14 @@ const config = {
     icon: "./assets/icon",
     name: "Enjoy",
     executableName: "enjoy",
+    osxSign: {
+      entitlements: "entitlements.plist",
+      "entitlements-inherit": "entitlements.plist",
+    },
+    extendInfo: {
+      NSMicrophoneUsageDescription:
+        "Enjoy needs access to your microphone for speech recognition and pronunciation assessment.",
+    },
     protocols: [
       {
         name: "Enjoy",
@@ -92,15 +102,17 @@ const config = {
     },
     // Fuses are used to enable/disable various Electron functionality
     // at package time, before code signing the application
-    new FusesPlugin({
-      version: FuseVersion.V1,
-      [FuseV1Options.RunAsNode]: false,
-      [FuseV1Options.EnableCookieEncryption]: true,
-      [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
-      [FuseV1Options.EnableNodeCliInspectArguments]: true,
-      [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-      [FuseV1Options.OnlyLoadAppFromAsar]: false,
-    }),
+    // DISABLED: Fuses modify the Electron binary which breaks ad-hoc signing on macOS 15.6+
+    // If you have an Apple Developer certificate, you can re-enable this
+    // new FusesPlugin({
+    //   version: FuseVersion.V1,
+    //   [FuseV1Options.RunAsNode]: false,
+    //   [FuseV1Options.EnableCookieEncryption]: true,
+    //   [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
+    //   [FuseV1Options.EnableNodeCliInspectArguments]: true,
+    //   [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: false,
+    //   [FuseV1Options.OnlyLoadAppFromAsar]: false,
+    // }),
     {
       name: "electron-forge-plugin-dependencies",
       config: {

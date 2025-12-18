@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  Progress,
 } from "@renderer/components/ui";
 import { AppSettingsProviderContext } from "@renderer/context";
 import { useContext, useEffect, useState } from "react";
@@ -369,26 +370,33 @@ export const EchogardenSttSettings = (props: {
               />
 
               {platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64" && (
-                <FormField
-                  control={form.control}
-                  name="whisperCpp.enableCoreML"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center space-x-2">
-                        <FormLabel>{t("enableCoreML")}</FormLabel>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </div>
-                      <FormDescription>
-                        {t("enableCoreMLDescription")}
-                      </FormDescription>
-                    </FormItem>
+                <>
+                  <FormField
+                    control={form.control}
+                    name="whisperCpp.enableCoreML"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center space-x-2">
+                          <FormLabel>{t("enableCoreML")}</FormLabel>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </div>
+                        <FormDescription>
+                          {t("enableCoreMLDescription")}
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+                  {form.watch("whisperCpp.enableCoreML") && (
+                    <CoreMLModelCheck
+                      model={form.watch("whisperCpp.model")}
+                    />
                   )}
-                />
+                </>
               )}
             </>
           )}
@@ -400,5 +408,104 @@ export const EchogardenSttSettings = (props: {
         </div>
       </form>
     </Form>
+  );
+};
+
+const CoreMLModelCheck = (props: { model: string }) => {
+  const { model } = props;
+  const { EnjoyApp } = useContext(AppSettingsProviderContext);
+  const [checking, setChecking] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [progress, setProgress] = useState<{
+    received: number;
+    total: number;
+    state: string;
+  }>({
+    received: 0,
+    total: 0,
+    state: "",
+  });
+
+  const checkModel = async () => {
+    setChecking(true);
+    try {
+      const result = await EnjoyApp.echogarden.checkCoreMLModel(model);
+      setIsReady(result);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to check Core ML model");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const downloadModel = async () => {
+    setDownloading(true);
+
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      progress: { received: number; total: number; state: string }
+    ) => {
+      setProgress(progress);
+    };
+
+    EnjoyApp.echogarden.onDownloadCoreMLModelProgress(handler);
+
+    try {
+      await EnjoyApp.echogarden.downloadCoreMLModel(model);
+      setIsReady(true);
+      toast.success("Core ML model downloaded");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to download Core ML model");
+    } finally {
+      setDownloading(false);
+      EnjoyApp.echogarden.removeDownloadCoreMLModelProgressListeners();
+      setProgress({ received: 0, total: 0, state: "" });
+    }
+  };
+
+  useEffect(() => {
+    checkModel();
+  }, [model]);
+
+  if (checking) return <div className="text-sm text-muted-foreground">{t("checkingCoreMLModel")}...</div>;
+
+  if (isReady) return <div className="text-sm text-green-500">{t("coreMLModelReady")}</div>;
+
+  if (downloading) {
+    let percentage = 0;
+    if (progress.total > 0) {
+      percentage = Math.round((progress.received / progress.total) * 100);
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            {progress.state === "unzipping" ? t("unzipping") : t("downloading")}
+            ...
+          </span>
+          <span>{percentage}%</span>
+        </div>
+        <Progress value={percentage} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center space-x-2">
+      <div className="text-sm text-amber-500">{t("coreMLModelMissing")}</div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={downloading}
+        onClick={downloadModel}
+      >
+        {t("download")}
+      </Button>
+    </div>
   );
 };

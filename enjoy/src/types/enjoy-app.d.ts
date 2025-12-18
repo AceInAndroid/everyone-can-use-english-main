@@ -341,6 +341,15 @@ type EnjoyAppType = {
       success: boolean;
       log: string;
     }>;
+    checkCoreMLModel: (model: string) => Promise<boolean>;
+    downloadCoreMLModel: (model: string) => Promise<void>;
+    onDownloadCoreMLModelProgress: (
+      callback: (
+        event: any,
+        progress: { received: number; total: number; state: string }
+      ) => void
+    ) => void;
+    removeDownloadCoreMLModelProgressListeners: () => void;
   };
   ffmpeg: {
     check: () => Promise<boolean>;
@@ -373,7 +382,7 @@ type EnjoyAppType = {
     set: (key: string, value: any, ttl?: number) => Promise<void>;
     delete: (key: string) => Promise<void>;
     clear: () => Promise<void>;
-    writeFile: (filename: string, data: Buffer<ArrayBuffer>) => Promise<string>;
+    writeFile: (filename: string, data: ArrayBuffer | Uint8Array) => Promise<string>;
   };
   transcriptions: {
     findOrCreate: (params: any) => Promise<TranscriptionType>;

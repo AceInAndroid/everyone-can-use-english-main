@@ -1,4 +1,5 @@
-import { ipcMain } from "electron";
+import { app, ipcMain } from "electron";
+import { execSync } from "child_process";
 import * as Echogarden from "echogarden/dist/api/API.js";
 import { AlignmentOptions, RecognitionOptions } from "echogarden/dist/api/API";
 import {
@@ -15,7 +16,10 @@ import {
   type Timeline,
   type TimelineEntry,
 } from "echogarden/dist/utilities/Timeline.d.js";
-import { ensureAndGetPackagesDir } from "echogarden/dist/utilities/PackageManager.js";
+import {
+  ensureAndGetPackagesDir,
+  loadPackage,
+} from "echogarden/dist/utilities/PackageManager.js";
 import path from "path";
 import log from "@main/logger";
 import url from "url";
@@ -23,11 +27,28 @@ import settings from "@main/settings";
 import fs from "fs-extra";
 import ffmpegPath from "ffmpeg-static";
 import { enjoyUrlToPath, pathToEnjoyUrl } from "./utils";
+import axios from "axios";
+import unzipper from "unzipper";
+import { pipeline } from "stream/promises";
+import { createWriteStream } from "fs";
 
 Echogarden.setGlobalOption(
   "ffmpegPath",
   ffmpegPath.replace("app.asar", "app.asar.unpacked")
 );
+const ffmpegExecutable = ffmpegPath.replace("app.asar", "app.asar.unpacked");
+if (process.platform === "darwin" && app.isPackaged) {
+  if (!fs.existsSync(ffmpegExecutable)) {
+    log.error(`FFmpeg executable not found at: ${ffmpegExecutable}`);
+  } else {
+    try {
+      fs.accessSync(ffmpegExecutable, fs.constants.X_OK);
+      log.info(`FFmpeg executable verified at: ${ffmpegExecutable}`);
+    } catch (err) {
+      log.error(`FFmpeg executable no execute permissions: ${ffmpegExecutable}`, err);
+    }
+  }
+}
 Echogarden.setGlobalOption(
   "packageBaseURL",
   "https://hf-mirror.com/echogarden/echogarden-packages/resolve/main/"
@@ -77,11 +98,55 @@ class EchogardenWrapper {
             "main"
           );
 
+          // ...
+          logger.info(
+            "Using whisper executable at:",
+            options.whisperCpp.executablePath
+          );
+          if (!fs.existsSync(options.whisperCpp.executablePath)) {
+            logger.error(
+              "Whisper executable not found at:",
+              options.whisperCpp.executablePath
+            );
+          } else {
+            // Check permissions and execution
+            try {
+              fs.accessSync(
+                options.whisperCpp.executablePath,
+                fs.constants.X_OK
+              );
+              logger.info("Whisper executable has execute permissions.");
+
+              // Helper to run command safely
+              try {
+                const output = execSync(`"${options.whisperCpp.executablePath}" --help`).toString();
+                if (output.includes("usage")) {
+                  logger.info("Whisper executable verification successful (help command ran).");
+                } else {
+                  logger.warn("Whisper executable ran but output was unexpected:", output.substring(0, 100));
+                }
+              } catch (execErr) {
+                // whisper -h might return non-zero sometimes? usually 0.
+                // If it returns non-zero but prints usage, it might be fine, but execSync throws.
+                logger.warn("Whisper executable run check failed or returned non-zero:", execErr.message);
+              }
+
+            } catch (err) {
+              logger.error(
+                "Whisper executable check failed:",
+                err
+              );
+            }
+          }
+
           // Neural Engine (Core ML) support
           // Note: The whisper.cpp binary must be compiled with Core ML support.
           // In Mac M-series, if enableCoreML is set, we ensure GPU is enabled (Core ML uses ANE/GPU).
           if ((options.whisperCpp as any).enableCoreML) {
             options.whisperCpp.enableGPU = true;
+            // Core ML binary enables Flash Attention by default which conflicts with DTW
+            // We must disable DTW to ensure timestamps are parsed correctly from the standard output
+            (options.whisperCpp as any).enableDTW = false;
           }
         }
 
@@ -390,6 +455,104 @@ class EchogardenWrapper {
     ipcMain.handle("echogarden-get-packages-dir", async (_event) => {
       return ensureAndGetPackagesDir();
     });
+    ipcMain.handle("echogarden-check-coreml-model", async (event, model) => {
+      return this.checkCoreMLModel(model);
+    });
+    ipcMain.handle("echogarden-download-coreml-model", async (event, model) => {
+      return this.downloadCoreMLModel(event.sender, model);
+    });
+  }
+
+  async checkCoreMLModel(model: string) {
+    const packageName = `whisper.cpp-${model}`;
+    const modelDir = await loadPackage(packageName);
+    const modelName = `ggml-${model}-encoder.mlmodelc`;
+    const modelPath = path.join(modelDir, modelName);
+
+    // Migration: Check if it's in the root packages dir
+    if (!fs.existsSync(modelPath)) {
+      const packagesDir = await ensureAndGetPackagesDir();
+      const oldPath = path.join(packagesDir, modelName);
+      if (fs.existsSync(oldPath)) {
+        logger.info(`Migrating Core ML model from ${oldPath} to ${modelPath}`);
+        await fs.move(oldPath, modelPath);
+        return true;
+      }
+    }
+
+    return fs.existsSync(modelPath);
+  }
+
+  async downloadCoreMLModel(sender: Electron.WebContents, model: string) {
+    const packageName = `whisper.cpp-${model}`;
+    const modelDir = await loadPackage(packageName);
+    const filename = `ggml-${model}-encoder.mlmodelc.zip`;
+    const candidateUrls = [
+      `https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/${filename}`,
+      `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${filename}`,
+    ];
+    const downloadPath = path.join(
+      settings.cachePath(),
+      filename
+    );
+
+    let lastError: unknown;
+    for (const url of candidateUrls) {
+      try {
+        logger.info(`Downloading Core ML model from ${url} to ${downloadPath}`);
+
+        // Best-effort cleanup of any previous partial download.
+        try {
+          fs.removeSync(downloadPath);
+        } catch {
+          // ignore
+        }
+
+        const response = await axios({
+          url,
+          method: "GET",
+          responseType: "stream",
+        });
+
+        const total = parseInt(response.headers["content-length"], 10);
+        let received = 0;
+
+        response.data.on("data", (chunk: Buffer) => {
+          received += chunk.length;
+          sender.send("echogarden-download-coreml-model-progress", {
+            received,
+            total,
+            state: "downloading",
+          });
+        });
+
+        await pipeline(response.data, createWriteStream(downloadPath));
+        logger.info(`Downloaded ${downloadPath}`);
+
+        // Unzip to modelDir
+        sender.send("echogarden-download-coreml-model-progress", {
+          received: total,
+          total,
+          state: "unzipping",
+        });
+        logger.info(`Unzipping ${downloadPath} to ${modelDir}`);
+        const directory = await unzipper.Open.file(downloadPath);
+        await directory.extract({ path: modelDir });
+        logger.info(`Unzipped to ${modelDir}`);
+        sender.send("echogarden-download-coreml-model-progress", {
+          received: total,
+          total,
+          state: "completed",
+        });
+
+        return;
+      } catch (err) {
+        lastError = err;
+        logger.warn(`Failed to download Core ML model from ${url}`, err);
+      }
+    }
+
+    throw lastError || new Error("Failed to download Core ML model");
   }
 }
 

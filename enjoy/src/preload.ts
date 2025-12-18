@@ -591,6 +591,21 @@ contextBridge.exposeInMainWorld("__ENJOY_APP__", {
     checkAlign: (options: AlignmentOptions) => {
       return ipcRenderer.invoke("echogarden-check-align", options);
     },
+    checkCoreMLModel: (model: string) => {
+      return ipcRenderer.invoke("echogarden-check-coreml-model", model);
+    },
+    downloadCoreMLModel: (model: string) => {
+      return ipcRenderer.invoke("echogarden-download-coreml-model", model);
+    },
+    onDownloadCoreMLModelProgress: (
+      callback: (
+        event: IpcRendererEvent,
+        progress: { received: number; total: number; state: string }
+      ) => void
+    ) => ipcRenderer.on("echogarden-download-coreml-model-progress", callback),
+    removeDownloadCoreMLModelProgressListeners: () => {
+      ipcRenderer.removeAllListeners("echogarden-download-coreml-model-progress");
+    },
   },
   ffmpeg: {
     check: () => {

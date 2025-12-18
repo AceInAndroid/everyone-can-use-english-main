@@ -250,12 +250,13 @@ export const useTranscribe = () => {
 
     let res: RecognitionResult;
     logger.info("Start transcribing from Whisper...");
+
     try {
       model =
         echogardenSttConfig[
           echogardenSttConfig.engine.replace(".cpp", "Cpp") as
-            | "whisper"
-            | "whisperCpp"
+          | "whisper"
+          | "whisperCpp"
         ].model;
 
       if (
@@ -270,6 +271,49 @@ export const useTranscribe = () => {
         }
       }
 
+      // Check and download Core ML model if enabled
+      if (echogardenSttConfig.whisperCpp?.enableCoreML) {
+        setOutput(`Checking Core ML model for ${model}...`);
+        const exists = await EnjoyApp.echogarden.checkCoreMLModel(model);
+        if (!exists) {
+          logger.info(`Core ML model for ${model} not found. Downloading...`);
+
+          await new Promise<void>((resolve, reject) => {
+            const onProgress = (
+              _event: Electron.IpcRendererEvent,
+              progress: { received: number; total: number; state: string }
+            ) => {
+              if (progress.state === "downloading") {
+                const percent = Math.round(
+                  (progress.received / progress.total) * 100
+                );
+                setOutput(`Downloading Core ML model... ${percent}%`);
+              } else if (progress.state === "unzipping") {
+                setOutput("Unzipping Core ML model...");
+              } else if (progress.state === "completed") {
+                resolve();
+              }
+            };
+
+            EnjoyApp.echogarden.onDownloadCoreMLModelProgress(onProgress);
+            EnjoyApp.echogarden
+              .downloadCoreMLModel(model)
+              .catch((err) => {
+                EnjoyApp.echogarden.removeDownloadCoreMLModelProgressListeners();
+                reject(err);
+              })
+              .then(() => {
+                // Ensure listener is removed even if "completed" state wasn't perfectly caught (though it should be)
+                // actually we depend on "completed" event to resolve. 
+                // Let's keep listener until resolve or distinct failure.
+              });
+          });
+
+          EnjoyApp.echogarden.removeDownloadCoreMLModelProgressListeners();
+        }
+      }
+
+      setOutput("Transcribing...");
       res = await EnjoyApp.echogarden.recognize(url, {
         language: languageCode,
         ...echogardenSttConfig,

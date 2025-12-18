@@ -30,6 +30,18 @@ const initBugsnag = async () => {
 
 app.commandLine.appendSwitch("enable-features", "SharedArrayBuffer");
 
+// Handle write EPIPE errors
+if (process.platform !== "win32") {
+  process.stdout.on("error", (err: any) => {
+    if (err.code === "EPIPE") return;
+    logger.error("stdout error", err);
+  });
+  process.stderr.on("error", (err: any) => {
+    if (err.code === "EPIPE") return;
+    logger.error("stderr error", err);
+  });
+}
+
 if (!app.isPackaged) {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch("disable-software-rasterizer");
@@ -59,28 +71,28 @@ contextMenu({
     browserWindow: BrowserWindow,
     _event
   ) => [
-    {
-      label: t("lookup"),
-      visible:
-        parameters.selectionText.trim().length > 0 &&
-        !parameters.selectionText.trim().includes(" "),
-      click: () => {
-        const { x, y, selectionText } = parameters;
-        browserWindow.webContents.send("on-lookup", selectionText, "", {
-          x,
-          y,
-        });
+      {
+        label: t("lookup"),
+        visible:
+          parameters.selectionText.trim().length > 0 &&
+          !parameters.selectionText.trim().includes(" "),
+        click: () => {
+          const { x, y, selectionText } = parameters;
+          browserWindow.webContents.send("on-lookup", selectionText, "", {
+            x,
+            y,
+          });
+        },
       },
-    },
-    {
-      label: t("aiTranslate"),
-      visible: parameters.selectionText.trim().length > 0,
-      click: () => {
-        const { x, y, selectionText } = parameters;
-        browserWindow.webContents.send("on-translate", selectionText, { x, y });
+      {
+        label: t("aiTranslate"),
+        visible: parameters.selectionText.trim().length > 0,
+        click: () => {
+          const { x, y, selectionText } = parameters;
+          browserWindow.webContents.send("on-translate", selectionText, { x, y });
+        },
       },
-    },
-  ],
+    ],
 });
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -160,5 +172,5 @@ app.on("activate", () => {
 app.on("before-quit", () => {
   try {
     fs.emptyDirSync(settings.cachePath());
-  } catch (err) {}
+  } catch (err) { }
 });
