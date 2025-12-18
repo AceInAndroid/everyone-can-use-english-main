@@ -32,8 +32,6 @@ import {
   MicIcon,
   PauseIcon,
   PlayIcon,
-  SquareIcon,
-  XIcon,
 } from "lucide-react";
 import { usePronunciationAssessments } from "@/renderer/hooks";
 import { useAudioRecorder } from "react-audio-voice-recorder";
@@ -239,7 +237,6 @@ export const PronunciationAssessmentForm = () => {
               disabled={submitting || !form.formState.isDirty}
               className="w-full h-12"
               data-testid="conversation-form-submit"
-              size="lg"
               type="submit"
             >
               {submitting && <LoaderIcon className="mr-2 animate-spin" />}
@@ -322,7 +319,6 @@ const RecorderButton = (props: {
           <Button
             onClick={togglePauseResume}
             className="rounded-full shadow w-8 h-8"
-            size="icon"
           >
             {isPaused ? (
               <PlayIcon
@@ -345,7 +341,6 @@ const RecorderButton = (props: {
             data-tooltip-content={t("finish")}
             onClick={stopRecording}
             className="rounded-full bg-green-500 hover:bg-green-600 shadow w-8 h-8"
-            size="icon"
           >
             <CheckIcon className="w-4 h-4 text-white" />
           </Button>
@@ -370,7 +365,6 @@ const RecorderButton = (props: {
           }
         }}
         className="rounded-full shadow w-10 h-10"
-        size="icon"
       >
         {submitting ? (
           <LoaderIcon className="w-6 h-6 animate-spin" />

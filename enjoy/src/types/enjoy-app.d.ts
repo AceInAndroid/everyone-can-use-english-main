@@ -464,4 +464,7 @@ type EnjoyAppType = {
     upload: (id: string) => Promise<void>;
     cleanUp: () => Promise<void>;
   };
+  audioProcessor: {
+    process: (src: string) => Promise<{ original: string; clean: string }>;
+  };
 };
