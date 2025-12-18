@@ -1,5 +1,5 @@
 import { app, ipcMain } from "electron";
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import * as Echogarden from "echogarden/dist/api/API.js";
 import { AlignmentOptions, RecognitionOptions } from "echogarden/dist/api/API";
 import {
@@ -31,6 +31,7 @@ import axios from "axios";
 import unzipper from "unzipper";
 import { pipeline } from "stream/promises";
 import { createWriteStream } from "fs";
+import { randomBytes } from "crypto";
 
 Echogarden.setGlobalOption(
   "ffmpegPath",
@@ -72,6 +73,188 @@ class EchogardenWrapper {
   public trimAudioStart: typeof trimAudioStart;
   public trimAudioEnd: typeof trimAudioEnd;
   public wordTimelineToSegmentSentenceTimeline: typeof wordTimelineToSegmentSentenceTimeline;
+
+  private async recognizeWhisperCppWithCoreML(
+    inputFile: string,
+    options: RecognitionOptions
+  ) {
+    const whisperCppOptions = (options.whisperCpp || {}) as any;
+
+    if (process.platform !== "darwin" || process.arch !== "arm64") {
+      throw new Error("Core ML is only supported on macOS arm64.");
+    }
+
+    const executablePath: string | undefined = whisperCppOptions.executablePath;
+    if (!executablePath) {
+      throw new Error("whisper.cpp executablePath is not set.");
+    }
+
+    const modelIdRaw: string | undefined = whisperCppOptions.model;
+    if (!modelIdRaw) {
+      throw new Error("No whisper.cpp model selected.");
+    }
+    const modelId = modelIdRaw === "large" ? "large-v2" : modelIdRaw;
+
+    // Model package directory used by echogarden is `whisper.cpp-<modelId>`.
+    const modelDir = await loadPackage(`whisper.cpp-${modelId}`);
+    const modelPath = path.join(modelDir, `ggml-${modelId}.bin`);
+    const coreMLDir = path.join(modelDir, `ggml-${modelId}-encoder.mlmodelc`);
+
+    if (!fs.existsSync(modelPath)) {
+      throw new Error(`Whisper.cpp model not found: ${modelPath}`);
+    }
+
+    // "Force" Core ML by requiring the compiled encoder exists and running with
+    // cwd set to the model directory (some builds look for the encoder bundle
+    // next to the model).
+    if (!fs.existsSync(coreMLDir)) {
+      throw new Error(
+        `Core ML encoder model not found: ${coreMLDir}. Please download it in Settings > AI > STT > Whisper.cpp.`
+      );
+    }
+
+    // Ensure the binary was built with Core ML runtime libs shipped alongside.
+    const coreMLDylib = path.join(
+      path.dirname(executablePath),
+      "lib",
+      "libwhisper.coreml.dylib"
+    );
+    if (!fs.existsSync(coreMLDylib)) {
+      throw new Error(
+        `Core ML runtime library not found: ${coreMLDylib}. Please rebuild whisper.cpp with Core ML support.`
+      );
+    }
+
+    const rawAudio = await this.ensureRawAudio(inputFile, 16000);
+    const sourceAsWave = this.encodeRawAudioToWave(rawAudio);
+
+    const outBase = path.join(
+      settings.cachePath(),
+      `whispercpp-${Date.now()}-${randomBytes(6).toString("hex")}`
+    );
+    const outJsonPath = `${outBase}.json`;
+
+    const language = (options as any).language || "auto";
+    const threads = whisperCppOptions.threadCount ?? 4;
+    const processors = whisperCppOptions.splitCount ?? 1;
+    const bestOf = whisperCppOptions.topCandidateCount ?? 5;
+    const beamSize = whisperCppOptions.beamCount ?? 5;
+    const repetitionThreshold = whisperCppOptions.repetitionThreshold ?? 2.4;
+    const temperature = whisperCppOptions.temperature ?? 0.0;
+    const temperatureIncrement = whisperCppOptions.temperatureIncrement ?? 0.2;
+
+    // Keep DTW disabled for Core ML builds (timestamps come from JSON output).
+    // Force flash attention on: some Core ML builds default it on; making it
+    // explicit keeps behavior consistent.
+    const args: string[] = [
+      "--output-json-full",
+      "--output-file",
+      outBase,
+      "--model",
+      modelPath,
+      "--language",
+      language,
+      "--threads",
+      `${threads}`,
+      "--processors",
+      `${processors}`,
+      "--best-of",
+      `${bestOf}`,
+      "--beam-size",
+      `${beamSize}`,
+      "--entropy-thold",
+      `${repetitionThreshold}`,
+      "--temperature",
+      `${temperature}`,
+      "--temperature-inc",
+      `${temperatureIncrement}`,
+      "--max-len",
+      "0",
+      "--flash-attn",
+    ];
+
+    if (whisperCppOptions.prompt) {
+      args.push("--prompt", String(whisperCppOptions.prompt));
+    }
+
+    // Do NOT add --no-gpu for Core ML. Core ML uses ANE/GPU internally.
+
+    logger.info(
+      `whisper.cpp(coreml) cmd: "${executablePath}" ${args.join(" ")} -`
+    );
+
+    const stderrChunks: string[] = [];
+
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(executablePath, [...args, "-"], {
+        cwd: modelDir,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      child.on("error", reject);
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", (chunk) => {
+        stderrChunks.push(String(chunk));
+      });
+
+      child.on("close", (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`whisper.cpp exited with code ${code}`));
+      });
+
+      child.stdin.end(sourceAsWave);
+    }).catch((err) => {
+      const stderr = stderrChunks.join("").trim();
+      if (stderr) {
+        throw new Error(`${String(err?.message || err)}\n${stderr}`);
+      }
+      throw err;
+    });
+
+    if (!fs.existsSync(outJsonPath)) {
+      throw new Error(`whisper.cpp output JSON not found: ${outJsonPath}`);
+    }
+
+    const resultObject = fs.readJsonSync(outJsonPath) as any;
+    try {
+      fs.removeSync(outJsonPath);
+    } catch {
+      // ignore
+    }
+
+    const segmentTimeline: any[] = [];
+    let transcript = "";
+
+    const transcription = Array.isArray(resultObject?.transcription)
+      ? resultObject.transcription
+      : [];
+    for (const segment of transcription) {
+      const text = String(segment?.text || "").trim();
+      const fromMs = segment?.offsets?.from;
+      const toMs = segment?.offsets?.to;
+      const startTime =
+        typeof fromMs === "number" && Number.isFinite(fromMs) ? fromMs / 1000 : 0;
+      const endTime =
+        typeof toMs === "number" && Number.isFinite(toMs) ? toMs / 1000 : startTime;
+
+      if (text) {
+        transcript += (transcript ? " " : "") + text;
+      }
+
+      segmentTimeline.push({
+        type: "segment",
+        text,
+        startTime,
+        endTime,
+        timeline: [],
+      });
+    }
+
+    return {
+      transcript,
+      timeline: segmentTimeline,
+    };
+  }
 
   constructor() {
     this.recognize = (sampleFile: string, options: RecognitionOptions) => {
@@ -150,8 +333,21 @@ class EchogardenWrapper {
           }
         }
 
+        // If Core ML is requested for whisper.cpp on Apple Silicon, run the
+        // bundled binary directly so we can "force" Core ML by validating the
+        // encoder bundle and executing from the model directory.
+        const useCoreMLWhisperCpp =
+          options.engine === "whisper.cpp" &&
+          process.platform === "darwin" &&
+          process.arch === "arm64" &&
+          Boolean((options.whisperCpp as any)?.enableCoreML);
+
+        const recognizer = useCoreMLWhisperCpp
+          ? this.recognizeWhisperCppWithCoreML(sampleFile, options)
+          : Echogarden.recognize(sampleFile, options);
+
         // Call the original recognize function
-        Echogarden.recognize(sampleFile, options)
+        Promise.resolve(recognizer)
           .then((result) => {
             // Remove the handler if successful
             process.removeListener("unhandledRejection", handler);
