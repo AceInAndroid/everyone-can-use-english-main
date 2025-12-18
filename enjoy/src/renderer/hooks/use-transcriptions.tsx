@@ -13,7 +13,7 @@ import { t } from "i18next";
 
 export const useTranscriptions = (media: AudioType | VideoType) => {
   const { sttEngine } = useContext(AISettingsProviderContext);
-  const { EnjoyApp, learningLanguage, webApi } = useContext(
+  const { EnjoyApp, learningLanguage, webApi, user } = useContext(
     AppSettingsProviderContext
   );
   const { addDblistener, removeDbListener } = useContext(DbProviderContext);
@@ -86,7 +86,7 @@ export const useTranscriptions = (media: AudioType | VideoType) => {
     };
 
   const findTranscriptionOnline = async () => {
-    if (!media) return;
+    if (!media || user?.isGuest) return;
 
     try {
       const result = await webApi.transcriptions({
