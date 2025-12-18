@@ -9,6 +9,7 @@ import contextMenu from "electron-context-menu";
 import Bugsnag from "@bugsnag/electron";
 import { t } from "i18next";
 import { Client } from "./api";
+import audioProcessorService from "@main/audio-processor-service";
 
 const logger = log.scope("main");
 
@@ -151,6 +152,7 @@ app.on("ready", async () => {
   });
 
   mainWindow.init();
+  audioProcessorService.registerIpcHandlers();
 });
 
 // Quit when all windows are closed, except on macOS. There, it's common

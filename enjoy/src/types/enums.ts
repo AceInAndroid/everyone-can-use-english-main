@@ -33,6 +33,7 @@ export enum AppSettingsKeyEnum {
   LIBRARY = "library",
   USER = "user",
   API_URL = "api_url",
+  AUDIO_PROCESSOR_ENABLE_DEEPFILTER = "audio_processor.enable_deepfilter",
 }
 
 export enum ChatTypeEnum {

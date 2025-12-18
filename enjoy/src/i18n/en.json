@@ -972,5 +972,7 @@
   "checkingForUpdate": "Checking for update",
   "updateAvailable": "Update available",
   "quitAndInstall": "Quit and install",
-  "pleaseSelect": "Please select"
+  "pleaseSelect": "Please select",
+  "enableDeepFilterNet": "Enhance Audio Quality",
+  "enableDeepFilterNetDescription": "Use DeepFilterNet to denoise audio for better scoring accuracy. (May take longer processing time)"
 }

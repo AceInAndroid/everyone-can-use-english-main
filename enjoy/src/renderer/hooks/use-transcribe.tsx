@@ -58,7 +58,7 @@ export const useTranscribe = () => {
   const { punctuateText } = useAiCommand();
   const [output, setOutput] = useState<string>("");
 
-  const transcode = async (src: string | Blob): Promise<string> => {
+  const transcode = async (src: string | Blob): Promise<{ original: string, clean: string }> => {
     if (src instanceof Blob) {
       src = await EnjoyApp.cacheObjects.writeFile(
         `${Date.now()}.${src.type.split("/")[1].split(";")[0]}`,
@@ -66,8 +66,9 @@ export const useTranscribe = () => {
       );
     }
 
-    const output = await EnjoyApp.echogarden.transcode(src);
-    return output;
+    // Use the new AudioProcessorService which returns dual streams
+    const result = await EnjoyApp.audioProcessor.process(src);
+    return result;
   };
 
   const transcribe = async (
@@ -90,7 +91,7 @@ export const useTranscribe = () => {
     tokenId?: number;
     url: string;
   }> => {
-    const url = await transcode(mediaSrc);
+    const { original: url, clean: cleanUrl } = await transcode(mediaSrc);
     const {
       targetId,
       targetType,
@@ -100,6 +101,7 @@ export const useTranscribe = () => {
       isolate = false,
       align = true,
     } = params || {};
+    // Use original audio for blob reading (for local Whisper)
     const blob = await (await fetch(url)).blob();
 
     let result: any;
@@ -138,9 +140,9 @@ export const useTranscribe = () => {
     const segmentTimelineForAlignment =
       segmentTimeline && segmentTimeline.length > 0
         ? segmentTimeline.map((seg) => ({
-            ...seg,
-            text: stripNonSpeechMarkers(seg.text),
-          }))
+          ...seg,
+          text: stripNonSpeechMarkers(seg.text),
+        }))
         : segmentTimeline;
 
     if (transcriptForAlignment !== transcript) {
@@ -161,7 +163,7 @@ export const useTranscribe = () => {
 
     if (segmentTimeline && segmentTimeline.length > 0) {
       const wordTimeline = await EnjoyApp.echogarden.alignSegments(
-        new Uint8Array(await blob.arrayBuffer()),
+        url,
         segmentTimelineForAlignment,
         {
           engine: "dtw",
@@ -185,7 +187,7 @@ export const useTranscribe = () => {
       setOutput("Aligning the transcript...");
       logger.info("Aligning the transcript...");
       const alignmentResult = await EnjoyApp.echogarden.align(
-        new Uint8Array(await blob.arrayBuffer()),
+        url,
         transcriptForAlignment,
         {
           engine: "dtw",
@@ -308,8 +310,8 @@ export const useTranscribe = () => {
       model =
         localConfig[
           localConfig.engine.replace(".cpp", "Cpp") as
-            | "whisper"
-            | "whisperCpp"
+          | "whisper"
+          | "whisperCpp"
         ].model;
 
       if (
@@ -358,8 +360,8 @@ export const useTranscribe = () => {
           model =
             localConfig[
               localConfig.engine.replace(".cpp", "Cpp") as
-                | "whisper"
-                | "whisperCpp"
+              | "whisper"
+              | "whisperCpp"
             ].model;
         } else if (platformInfo?.platform === "darwin") {
           throw new Error(t("largeWhisperOnnxMayCrashOnMac"));
@@ -434,10 +436,10 @@ export const useTranscribe = () => {
           EnjoyApp.echogarden.removeLogListeners();
         }
       } else {
-      res = await EnjoyApp.echogarden.recognize(url, {
-        language: languageCode,
-        ...(localConfig as any),
-      });
+        res = await EnjoyApp.echogarden.recognize(url, {
+          language: languageCode,
+          ...(localConfig as any),
+        });
       }
     } catch (err) {
       throw new Error(t("whisperTranscribeFailed", { error: err.message }));

@@ -125,8 +125,13 @@ class EchogardenWrapper {
       );
     }
 
-    const rawAudio = await this.ensureRawAudio(inputFile, 16000);
-    const sourceAsWave = this.encodeRawAudioToWave(rawAudio);
+    // For Core ML, we can pass the file path directly if it is a WAV file.
+    // AudioProcessorService already ensures 16kHz mono WAV.
+    // However, ensureRawAudio logic below might be doing conversion checks.
+    // Since we want to fix the hang, passing the file path is safer than piping large buffers.
+
+    // const rawAudio = await this.ensureRawAudio(inputFile, 16000);
+    // const sourceAsWave = this.encodeRawAudioToWave(rawAudio);
 
     const outBase = path.join(
       settings.cachePath(),
@@ -176,6 +181,8 @@ class EchogardenWrapper {
       "--max-len",
       "0",
       "--flash-attn",
+      "--file",
+      inputFile
     ];
 
     if (whisperCppOptions.prompt) {
@@ -185,15 +192,15 @@ class EchogardenWrapper {
     // Do NOT add --no-gpu for Core ML. Core ML uses ANE/GPU internally.
 
     logger.info(
-      `whisper.cpp(coreml) cmd: "${executablePath}" ${args.join(" ")} -`
+      `whisper.cpp(coreml) cmd: "${executablePath}" ${args.join(" ")}`
     );
 
     const stderrChunks: string[] = [];
 
     await new Promise<void>((resolve, reject) => {
-      const child = spawn(executablePath, [...args, "-"], {
+      const child = spawn(executablePath, args, {
         cwd: modelDir,
-        stdio: ["pipe", "pipe", "pipe"],
+        stdio: ["ignore", "ignore", "pipe"],
       });
 
       child.on("error", reject);
@@ -207,7 +214,7 @@ class EchogardenWrapper {
         else reject(new Error(`whisper.cpp exited with code ${code}`));
       });
 
-      child.stdin.end(sourceAsWave);
+      // child.stdin.end(sourceAsWave); // No stdin needed
     }).catch((err) => {
       const stderr = stderrChunks.join("").trim();
       if (stderr) {
@@ -617,6 +624,9 @@ class EchogardenWrapper {
         options: AlignmentOptions
       ) => {
         logger.info("echogarden-align:", options);
+        if (typeof input === "string") {
+          input = enjoyUrlToPath(input);
+        }
         try {
           return await this.align(input, transcript, options);
         } catch (err) {

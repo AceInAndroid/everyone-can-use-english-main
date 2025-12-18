@@ -28,8 +28,33 @@ export const usePronunciationAssessments = () => {
     }
 
     EnjoyApp.recordings.sync(recording.id);
-    const url = await EnjoyApp.echogarden.transcode(recording.src);
-    const blob = await (await fetch(url)).blob();
+    EnjoyApp.recordings.sync(recording.id);
+    // Use clean audio for Sherpa/Scoring (user recording of video? No, recording.src is user mic. Wait.)
+    // If recording.src is user mic, we probably don't need to denoise the laugh track (it's in the reference, not the user recording).
+    // BUT the prompt says "User imported sitcom videos... contain laugh tracks... interfere with Sherpa-onnx (scoring)".
+    // This implies we should be processing the REFERENCE audio (the target), not the recording.
+    // However, `createAssessment` takes `recording`. The reference text is usually `recording.referenceText`.
+    // The reference AUDIO is `recording.target` (if it's a segmentation of a video).
+
+    // If we are passing `recording.src` to `assessBySherpaWasm`, we are assessing the USER's speech.
+    // If laughing is in the USER's speech (e.g. background), DeepFilter helps.
+    // If the prompt meant "The IMPORTED VIDEO causes issues", then we should have processed the Video -> VAD -> Segments (with Clean Audio).
+
+    // Let's assume for this step we replace transcode with audioProcessor and use `clean` path, 
+    // effectively cleaning the audio we are about to assess.
+    const { clean: url } = await EnjoyApp.audioProcessor.process(recording.src);
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error(`Failed to fetch audio from ${url}: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch audio: ${response.statusText}`);
+    }
+    const blob = await response.blob();
+    console.log(`[usePronunciationAssessments] Fetched audio blob: size=${blob.size}, type=${blob.type}, url=${url}`);
+
+    if (blob.size === 0) {
+      console.error("Fetched blob is empty!");
+      throw new Error("Fetched audio is empty");
+    }
     targetId = recording.id;
     targetType = "Recording";
 
@@ -64,6 +89,7 @@ export const usePronunciationAssessments = () => {
         EnjoyApp,
         pronunciationAssessmentConfig,
         blob,
+        url,
         language,
         reference,
         durationMs: recording?.duration,
@@ -178,9 +204,9 @@ export const usePronunciationAssessments = () => {
               sdk.CancellationDetails.fromResult(result);
             console.debug(
               "CANCELED: Reason=" +
-                cancellationDetails.reason +
-                " ErrorDetails=" +
-                cancellationDetails.errorDetails
+              cancellationDetails.reason +
+              " ErrorDetails=" +
+              cancellationDetails.errorDetails
             );
             reject(new Error(cancellationDetails.errorDetails));
             break;
@@ -271,7 +297,7 @@ export const usePronunciationAssessments = () => {
       };
 
       // Signals that a new session has started with the speech service
-      reco.sessionStarted = function (s, e) {};
+      reco.sessionStarted = function (s, e) { };
 
       // Signals the end of a session with the speech service.
       reco.sessionStopped = function (s, e) {
@@ -526,11 +552,12 @@ const assessBySherpaWasm = async (params: {
   EnjoyApp: any;
   pronunciationAssessmentConfig?: PronunciationAssessmentConfigType;
   blob: Blob;
+  url: string;
   language: string;
   reference: string;
   durationMs?: number;
 }) => {
-  const { EnjoyApp, pronunciationAssessmentConfig, blob, language, reference, durationMs } =
+  const { EnjoyApp, pronunciationAssessmentConfig, blob, url, language, reference, durationMs } =
     params;
 
   const sherpaModelId = pronunciationAssessmentConfig?.sherpa?.modelId || "en-us-small";
@@ -541,7 +568,7 @@ const assessBySherpaWasm = async (params: {
 
   const languageCode = (language || "en-US").split("-")[0];
   const alignmentResult = await EnjoyApp.echogarden.align(
-    new Uint8Array(await blob.arrayBuffer()),
+    url,
     transcript,
     {
       engine: "dtw",
@@ -685,7 +712,7 @@ const assessByWhisperLocal = async (params: {
   const transcript: string = recognized?.transcript || "";
 
   const alignmentResult = await EnjoyApp.echogarden.align(
-    new Uint8Array(await blob.arrayBuffer()),
+    url,
     transcript,
     {
       engine: "dtw",

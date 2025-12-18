@@ -40,3 +40,4 @@ export * from "./dict-settings";
 export * from "./echogarden-stt-settings";
 
 export * from "./deposit";
+export * from "./audio-settings";

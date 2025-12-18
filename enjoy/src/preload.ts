@@ -627,6 +627,11 @@ contextBridge.exposeInMainWorld("__ENJOY_APP__", {
       return ipcRenderer.invoke("ffmpeg-transcode", input, output, options);
     },
   },
+  audioProcessor: {
+    process: (url: string) => {
+      return ipcRenderer.invoke("audio-processor-process", url);
+    },
+  },
   decompress: {
     onComplete: (
       callback: (event: IpcRendererEvent, task: DecompressTask) => void
