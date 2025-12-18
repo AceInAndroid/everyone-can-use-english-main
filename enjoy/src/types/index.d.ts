@@ -284,6 +284,10 @@ type EchogardenSttConfigType = {
   };
   whisperCpp?: {
     model: string;
+    threadCount?: number;
+    splitCount?: number;
+    topCandidateCount?: number;
+    beamCount?: number;
     temperature?: number;
     prompt?: string;
     enableGPU?: boolean;

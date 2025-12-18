@@ -35,6 +35,10 @@ const echogardenSttConfigSchema = z.object({
   }),
   whisperCpp: z.object({
     model: z.string(),
+    threadCount: z.number().optional(),
+    splitCount: z.number().optional(),
+    topCandidateCount: z.number().optional(),
+    beamCount: z.number().optional(),
     temperature: z.number(),
     prompt: z.string(),
     enableGPU: z.boolean(),
@@ -70,6 +74,10 @@ export const EchogardenSttSettings = (props: {
       },
       whisperCpp: {
         model: "tiny",
+        threadCount: undefined,
+        splitCount: undefined,
+        topCandidateCount: undefined,
+        beamCount: undefined,
         temperature: 0.1,
         prompt: "",
         enableGPU: false,
@@ -79,6 +87,14 @@ export const EchogardenSttSettings = (props: {
       },
     },
   });
+
+  const isAppleSilicon =
+    platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64";
+  const recommendedThreadCount = () => {
+    const cpuCount = globalThis.navigator?.hardwareConcurrency || 4;
+    return Math.min(8, Math.max(4, Math.floor(cpuCount * 0.75)));
+  };
+  const decoderCap = Math.min(8, recommendedThreadCount());
 
   const onSubmit = async (data: z.infer<typeof echogardenSttConfigSchema>) => {
     const selectedModel = data.whisper.model || "tiny";
@@ -298,6 +314,9 @@ export const EchogardenSttSettings = (props: {
 
           {form.watch("engine") === "whisper.cpp" && (
             <>
+              <div className="text-xs text-muted-foreground">
+                {t("whisperCppTuningHint", { threads: recommendedThreadCount(), cap: decoderCap })}
+              </div>
               <FormField
                 control={form.control}
                 name="whisperCpp.temperature"
@@ -313,6 +332,102 @@ export const EchogardenSttSettings = (props: {
                         {...field}
                       />
                     </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="whisperCpp.threadCount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("threadCount")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step={1}
+                        min={1}
+                        max={16}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          field.onChange(v === "" ? undefined : Number(v));
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>{t("threadCountDescription")}</FormDescription>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="whisperCpp.splitCount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("splitCount")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step={1}
+                        min={1}
+                        max={4}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          field.onChange(v === "" ? undefined : Number(v));
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>{t("splitCountDescription")}</FormDescription>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="whisperCpp.topCandidateCount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("topCandidateCount")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step={1}
+                        min={1}
+                        max={8}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          field.onChange(v === "" ? undefined : Number(v));
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>{t("topCandidateCountDescription")}</FormDescription>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="whisperCpp.beamCount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("beamCount")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step={1}
+                        min={1}
+                        max={8}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          field.onChange(v === "" ? undefined : Number(v));
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>{t("beamCountDescription")}</FormDescription>
                   </FormItem>
                 )}
               />

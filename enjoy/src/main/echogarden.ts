@@ -137,8 +137,13 @@ class EchogardenWrapper {
     const language = (options as any).language || "auto";
     const threads = whisperCppOptions.threadCount ?? 4;
     const processors = whisperCppOptions.splitCount ?? 1;
-    const bestOf = whisperCppOptions.topCandidateCount ?? 5;
-    const beamSize = whisperCppOptions.beamCount ?? 5;
+    const requestedBestOf = whisperCppOptions.topCandidateCount ?? 5;
+    const requestedBeamSize = whisperCppOptions.beamCount ?? 5;
+    // whisper.cpp has an internal decoder limit that can be lower than
+    // requested `--best-of` / `--beam-size` (often tied to thread count).
+    // Clamp to avoid "too many decoders requested" which can crash the process.
+    const bestOf = Math.max(1, Math.min(requestedBestOf, threads));
+    const beamSize = Math.max(1, Math.min(requestedBeamSize, threads));
     const repetitionThreshold = whisperCppOptions.repetitionThreshold ?? 2.4;
     const temperature = whisperCppOptions.temperature ?? 0.0;
     const temperatureIncrement = whisperCppOptions.temperatureIncrement ?? 0.2;

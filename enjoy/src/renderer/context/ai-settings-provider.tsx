@@ -166,13 +166,28 @@ export const AISettingsProvider = ({
     const isAppleSilicon =
       platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64";
 
+    const defaultWhisperCppThreadCount = () => {
+      const cpuCount = globalThis.navigator?.hardwareConcurrency || 4;
+      // A conservative default that works well across M1/M2/M3/M4 variants.
+      // Avoid oversubscribing to keep latency stable and reduce thermal throttling.
+      return Math.min(8, Math.max(4, Math.floor(cpuCount * 0.75)));
+    };
+
     const normalizeWhisperCppModel = (model?: string) => {
       if (!model) return model;
       return model === "large" ? "large-v2" : model;
     };
 
     const buildAppleSiliconOptimizedConfig = (model: string) => {
-      const normalizedModel = normalizeWhisperCppModel(model) || "tiny.en";
+      const preferredDefaultModel = "base.en";
+      const normalizedModelRaw =
+        normalizeWhisperCppModel(model) || preferredDefaultModel;
+      const normalizedModel =
+        normalizedModelRaw === "tiny" || normalizedModelRaw === "tiny.en"
+          ? preferredDefaultModel
+          : normalizedModelRaw;
+      const threadCount = defaultWhisperCppThreadCount();
+      const decoderCap = Math.min(8, threadCount);
       return {
         engine: "whisper.cpp" as const,
         whisper: {
@@ -184,6 +199,11 @@ export const AISettingsProvider = ({
         },
         whisperCpp: {
           model: normalizedModel,
+          threadCount,
+          splitCount: 1,
+          // Defaults not too aggressive; user can increase in settings.
+          topCandidateCount: Math.min(5, decoderCap),
+          beamCount: Math.min(5, decoderCap),
           temperature: 0.0,
           prompt: "",
           enableGPU: true,
@@ -205,7 +225,8 @@ export const AISettingsProvider = ({
     };
 
     if (!config) {
-      let model = "tiny";
+      // Default base.en on Apple Silicon for better accuracy/performance.
+      let model = isAppleSilicon ? "base.en" : "tiny";
       const whisperModel =
         (await EnjoyApp.userSettings.get(UserSettingKeyEnum.WHISPER)) || "";
       if (WHISPER_MODELS.includes(whisperModel)) {
@@ -225,7 +246,8 @@ export const AISettingsProvider = ({
 
         if (
           learningLanguage.match(/en/) &&
-          model.match(/tiny|base|small|medium/)
+          model.match(/tiny|base|small|medium/) &&
+          !model.endsWith(".en")
         ) {
           model = `${model}.en`;
         }
@@ -260,7 +282,16 @@ export const AISettingsProvider = ({
       } else if (config.engine === "whisper.cpp") {
         // Ensure new fields have sensible defaults.
         const whisperCpp = config.whisperCpp || { model: currentModel };
-        if (whisperCpp.enableCoreML == null) {
+        if (
+          whisperCpp.enableCoreML == null ||
+          whisperCpp.threadCount == null ||
+          whisperCpp.splitCount == null ||
+          whisperCpp.topCandidateCount == null ||
+          whisperCpp.beamCount == null
+        ) {
+          const threadCount =
+            whisperCpp.threadCount ?? defaultWhisperCppThreadCount();
+          const decoderCap = Math.min(8, threadCount);
           nextConfig = {
             ...config,
             whisperCpp: {
@@ -269,8 +300,37 @@ export const AISettingsProvider = ({
               enableCoreML: true,
               enableGPU: whisperCpp.enableGPU ?? true,
               enableDTW: whisperCpp.enableDTW ?? false,
+              threadCount,
+              splitCount: whisperCpp.splitCount ?? 1,
+              topCandidateCount:
+                Math.min(
+                  whisperCpp.topCandidateCount ?? Math.min(5, decoderCap),
+                  decoderCap
+                ) || 1,
+              beamCount:
+                Math.min(
+                  whisperCpp.beamCount ?? Math.min(5, decoderCap),
+                  decoderCap
+                ) || 1,
             },
           };
+        } else {
+          // Safety: clamp to avoid whisper.cpp crashing on "too many decoders requested".
+          const threadCount =
+            whisperCpp.threadCount ?? defaultWhisperCppThreadCount();
+          const decoderCap = Math.min(8, threadCount);
+          const nextTop = Math.min(whisperCpp.topCandidateCount, decoderCap);
+          const nextBeam = Math.min(whisperCpp.beamCount, decoderCap);
+          if (nextTop !== whisperCpp.topCandidateCount || nextBeam !== whisperCpp.beamCount) {
+            nextConfig = {
+              ...config,
+              whisperCpp: {
+                ...whisperCpp,
+                topCandidateCount: Math.max(1, nextTop),
+                beamCount: Math.max(1, nextBeam),
+              },
+            };
+          }
         }
       }
 

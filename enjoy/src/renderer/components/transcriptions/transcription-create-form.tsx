@@ -3,7 +3,7 @@ import {
   AppSettingsProviderContext,
 } from "@renderer/context";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -59,8 +59,9 @@ export const TranscriptionCreateForm = (props: {
     onCancel,
     originalText,
   } = props;
-  const { learningLanguage } = useContext(AppSettingsProviderContext);
-  const { user } = useContext(AppSettingsProviderContext);
+  const { learningLanguage, EnjoyApp, user } = useContext(
+    AppSettingsProviderContext
+  );
   const isGuest = Boolean(user?.isGuest);
   const { sttEngine, echogardenSttConfig } = useContext(
     AISettingsProviderContext
@@ -207,6 +208,18 @@ export const TranscriptionCreateForm = (props: {
                           ]?.model
                         }
                       </div>
+                      {echogardenSttConfig.engine === "whisper.cpp" && (
+                        <CoreMLStatus
+                          transcribing={transcribing}
+                          enableCoreML={Boolean(
+                            echogardenSttConfig.whisperCpp?.enableCoreML
+                          )}
+                          model={
+                            echogardenSttConfig.whisperCpp?.model ||
+                            echogardenSttConfig.whisper?.model
+                          }
+                        />
+                      )}
                     </>
                   )}
 
@@ -375,6 +388,144 @@ export const TranscriptionCreateForm = (props: {
       </form>
     </Form>
   );
+};
+
+const CoreMLStatus = (props: {
+  model: string;
+  enableCoreML: boolean;
+  transcribing: boolean;
+}) => {
+  const { model, enableCoreML, transcribing } = props;
+  const { EnjoyApp } = useContext(AppSettingsProviderContext);
+  const [platformInfo, setPlatformInfo] = useState<{
+    platform: string;
+    arch: string;
+  } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [isReady, setIsReady] = useState<boolean | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [progress, setProgress] = useState<{
+    received: number;
+    total: number;
+    state: string;
+  }>({ received: 0, total: 0, state: "" });
+
+  const normalizedModel = model === "large" ? "large-v2" : model;
+  const isAppleSilicon =
+    platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64";
+
+  useEffect(() => {
+    EnjoyApp.app
+      .getPlatformInfo()
+      .then((info) => setPlatformInfo(info))
+      .catch(() => setPlatformInfo(null));
+  }, []);
+
+  const checkModel = async () => {
+    if (!enableCoreML) return;
+    if (!isAppleSilicon) return;
+    if (!normalizedModel) return;
+
+    setChecking(true);
+    try {
+      const exists = await EnjoyApp.echogarden.checkCoreMLModel(normalizedModel);
+      setIsReady(exists);
+    } catch (e) {
+      console.error(e);
+      setIsReady(false);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    checkModel();
+  }, [enableCoreML, isAppleSilicon, normalizedModel]);
+
+  const downloadModel = async () => {
+    if (downloading) return;
+    setDownloading(true);
+
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      progress: { received: number; total: number; state: string }
+    ) => {
+      setProgress(progress);
+    };
+
+    EnjoyApp.echogarden.onDownloadCoreMLModelProgress(handler);
+
+    try {
+      await EnjoyApp.echogarden.downloadCoreMLModel(normalizedModel);
+      setIsReady(true);
+      toast.success(t("coreMLModelReady"));
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to download Core ML model");
+    } finally {
+      setDownloading(false);
+      EnjoyApp.echogarden.removeDownloadCoreMLModelProgressListeners();
+      setProgress({ received: 0, total: 0, state: "" });
+    }
+  };
+
+  if (!enableCoreML) return null;
+  if (!isAppleSilicon) return null;
+
+  if (checking) {
+    return (
+      <div className="mt-2 text-xs text-muted-foreground">
+        {t("enableCoreML")}: {t("checkingCoreMLModel")}...
+      </div>
+    );
+  }
+
+  if (isReady) {
+    return (
+      <div className="mt-2 text-xs text-muted-foreground">
+        {t("enableCoreML")}: {t("coreMLModelReady")}
+      </div>
+    );
+  }
+
+  if (downloading) {
+    let percentage = 0;
+    if (progress.total > 0) {
+      percentage = Math.round((progress.received / progress.total) * 100);
+    }
+
+    return (
+      <div className="mt-2 space-y-2">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            {progress.state === "unzipping" ? t("unzipping") : t("downloading")}
+            ...
+          </span>
+          <span>{percentage}%</span>
+        </div>
+        <Progress value={percentage} />
+      </div>
+    );
+  }
+
+  if (isReady === false) {
+    return (
+      <div className="mt-2 flex items-center justify-between">
+        <div className="text-xs text-amber-500">{t("coreMLModelMissing")}</div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={transcribing || downloading}
+          onClick={downloadModel}
+        >
+          {t("download")}
+        </Button>
+      </div>
+    );
+  }
+
+  return null;
 };
 
 const TranscribeProgress = (props: {
