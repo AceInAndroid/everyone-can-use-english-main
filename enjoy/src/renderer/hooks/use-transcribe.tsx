@@ -29,7 +29,9 @@ const punctuationsPattern = /\w[.,!?](\s|$)/g;
 
 export const useTranscribe = () => {
   const { EnjoyApp, user, webApi } = useContext(AppSettingsProviderContext);
-  const { openai, echogardenSttConfig } = useContext(AISettingsProviderContext);
+  const { openai, echogardenSttConfig, setEchogardenSttConfig } = useContext(
+    AISettingsProviderContext
+  );
   const { punctuateText } = useAiCommand();
   const [output, setOutput] = useState<string>("");
 
@@ -247,32 +249,71 @@ export const useTranscribe = () => {
     let { language } = options || {};
     const languageCode = language.split("-")[0];
     let model: string;
+    let usedEngine = echogardenSttConfig?.engine || "whisper";
 
     let res: RecognitionResult;
     logger.info("Start transcribing from Whisper...");
 
     try {
+      let localConfig = echogardenSttConfig;
+      if (!localConfig) {
+        throw new Error("Echogarden STT config is not ready");
+      }
+
       model =
-        echogardenSttConfig[
-          echogardenSttConfig.engine.replace(".cpp", "Cpp") as
-          | "whisper"
-          | "whisperCpp"
+        localConfig[
+          localConfig.engine.replace(".cpp", "Cpp") as
+            | "whisper"
+            | "whisperCpp"
         ].model;
 
       if (
-        echogardenSttConfig.engine === "whisper" &&
+        localConfig.engine === "whisper" &&
         model?.startsWith("large") &&
-        echogardenSttConfig.whisper?.encoderProvider === "cpu" &&
-        echogardenSttConfig.whisper?.decoderProvider === "cpu"
+        localConfig.whisper?.encoderProvider === "cpu" &&
+        localConfig.whisper?.decoderProvider === "cpu"
       ) {
         const platformInfo = await EnjoyApp.app.getPlatformInfo();
-        if (platformInfo?.platform === "darwin") {
+        if (
+          platformInfo?.platform === "darwin" &&
+          platformInfo?.arch === "arm64"
+        ) {
+          const normalizedModel = model === "large" ? "large-v2" : model;
+          const nextConfig = {
+            ...localConfig,
+            engine: "whisper.cpp" as const,
+            whisper: {
+              ...localConfig.whisper,
+              model: normalizedModel,
+            },
+            whisperCpp: {
+              ...(localConfig.whisperCpp || {}),
+              model: normalizedModel,
+              enableCoreML: true,
+              enableGPU: true,
+              enableDTW: false,
+            },
+          };
+
+          setOutput(t("largeWhisperOnnxMayCrashOnMacSwitchingToWhisperCpp"));
+          toast.success(t("largeWhisperOnnxMayCrashOnMacSwitchingToWhisperCpp"));
+
+          await setEchogardenSttConfig?.(nextConfig as any);
+          localConfig = nextConfig as any;
+          usedEngine = localConfig.engine;
+          model =
+            localConfig[
+              localConfig.engine.replace(".cpp", "Cpp") as
+                | "whisper"
+                | "whisperCpp"
+            ].model;
+        } else if (platformInfo?.platform === "darwin") {
           throw new Error(t("largeWhisperOnnxMayCrashOnMac"));
         }
       }
 
       // Check and download Core ML model if enabled
-      if (echogardenSttConfig.whisperCpp?.enableCoreML) {
+      if (localConfig.whisperCpp?.enableCoreML) {
         setOutput(`Checking Core ML model for ${model}...`);
         const exists = await EnjoyApp.echogarden.checkCoreMLModel(model);
         if (!exists) {
@@ -316,7 +357,7 @@ export const useTranscribe = () => {
       setOutput("Transcribing...");
       res = await EnjoyApp.echogarden.recognize(url, {
         language: languageCode,
-        ...echogardenSttConfig,
+        ...(localConfig as any),
       });
     } catch (err) {
       throw new Error(t("whisperTranscribeFailed", { error: err.message }));
@@ -326,7 +367,7 @@ export const useTranscribe = () => {
     const { transcript, timeline } = res;
 
     return {
-      engine: "whisper",
+      engine: usedEngine,
       model,
       transcript,
       segmentTimeline: timeline,

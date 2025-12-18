@@ -162,6 +162,47 @@ export const AISettingsProvider = ({
 
   const refreshEchogardenSttConfig = async () => {
     let config = await EnjoyApp.userSettings.get(UserSettingKeyEnum.ECHOGARDEN);
+    const platformInfo = await EnjoyApp.app.getPlatformInfo();
+    const isAppleSilicon =
+      platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64";
+
+    const normalizeWhisperCppModel = (model?: string) => {
+      if (!model) return model;
+      return model === "large" ? "large-v2" : model;
+    };
+
+    const buildAppleSiliconOptimizedConfig = (model: string) => {
+      const normalizedModel = normalizeWhisperCppModel(model) || "tiny.en";
+      return {
+        engine: "whisper.cpp" as const,
+        whisper: {
+          model: normalizedModel,
+          temperature: 0.2,
+          prompt: "",
+          encoderProvider: "cpu",
+          decoderProvider: "cpu",
+        },
+        whisperCpp: {
+          model: normalizedModel,
+          temperature: 0.0,
+          prompt: "",
+          enableGPU: true,
+          enableDTW: false,
+          enableCoreML: true,
+        },
+      } satisfies EchogardenSttConfigType;
+    };
+
+    const isDefaultWhisperOnnxConfig = (cfg: any) => {
+      return (
+        cfg?.engine === "whisper" &&
+        !cfg?.whisperCpp &&
+        cfg?.whisper?.encoderProvider === "cpu" &&
+        cfg?.whisper?.decoderProvider === "cpu" &&
+        (cfg?.whisper?.prompt ?? "") === "" &&
+        (cfg?.whisper?.temperature ?? 0.2) === 0.2
+      );
+    };
 
     if (!config) {
       let model = "tiny";
@@ -190,17 +231,53 @@ export const AISettingsProvider = ({
         }
       }
 
-      config = {
-        engine: "whisper",
-        whisper: {
-          model,
-          temperature: 0.2,
-          prompt: "",
-          encoderProvider: "cpu",
-          decoderProvider: "cpu",
-        },
-      };
+      config = isAppleSilicon
+        ? buildAppleSiliconOptimizedConfig(model)
+        : ({
+            engine: "whisper",
+            whisper: {
+              model,
+              temperature: 0.2,
+              prompt: "",
+              encoderProvider: "cpu",
+              decoderProvider: "cpu",
+            },
+          } satisfies EchogardenSttConfigType);
       EnjoyApp.userSettings.set(UserSettingKeyEnum.ECHOGARDEN, config);
+    } else if (isAppleSilicon) {
+      // Auto-optimize the legacy/default config on Apple Silicon:
+      // - Prefer whisper.cpp
+      // - Enable Core ML by default
+      // We only migrate configs that look like the app's default ONNX config to avoid
+      // overriding explicit user choices.
+      const currentModel =
+        config?.whisper?.model || config?.whisperCpp?.model || "tiny.en";
+
+      let nextConfig: EchogardenSttConfigType | null = null;
+
+      if (isDefaultWhisperOnnxConfig(config)) {
+        nextConfig = buildAppleSiliconOptimizedConfig(currentModel);
+      } else if (config.engine === "whisper.cpp") {
+        // Ensure new fields have sensible defaults.
+        const whisperCpp = config.whisperCpp || { model: currentModel };
+        if (whisperCpp.enableCoreML == null) {
+          nextConfig = {
+            ...config,
+            whisperCpp: {
+              ...whisperCpp,
+              model: normalizeWhisperCppModel(whisperCpp.model) || currentModel,
+              enableCoreML: true,
+              enableGPU: whisperCpp.enableGPU ?? true,
+              enableDTW: whisperCpp.enableDTW ?? false,
+            },
+          };
+        }
+      }
+
+      if (nextConfig) {
+        config = nextConfig;
+        await EnjoyApp.userSettings.set(UserSettingKeyEnum.ECHOGARDEN, config);
+      }
     }
     if (!mountedRef.current) return;
     setEchogardenSttConfig(config);
@@ -231,9 +308,7 @@ export const AISettingsProvider = ({
         ]?.model || "tiny";
 
       config = {
-        engine: isGuest
-          ? PronunciationAssessmentEngineEnum.WHISPER_LOCAL
-          : PronunciationAssessmentEngineEnum.AZURE,
+        engine: PronunciationAssessmentEngineEnum.SHERPA_WASM,
         whisper: {
           engine: "whisper",
           model: sttModel,
@@ -361,6 +436,19 @@ export const AISettingsProvider = ({
       } else {
         setSttEngine(_sttEngine);
       }
+    } else {
+      const platformInfo = await EnjoyApp.app.getPlatformInfo();
+      const isAppleSilicon =
+        platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64";
+
+      const defaultEngine = isGuest
+        ? SttEngineOptionEnum.LOCAL
+        : isAppleSilicon
+          ? SttEngineOptionEnum.LOCAL
+          : SttEngineOptionEnum.ENJOY_AZURE;
+
+      setSttEngine(defaultEngine);
+      await EnjoyApp.userSettings.set(UserSettingKeyEnum.STT_ENGINE, defaultEngine);
     }
 
     const _openai = await EnjoyApp.userSettings.get(UserSettingKeyEnum.OPENAI);
