@@ -352,6 +352,8 @@ type EnjoyAppType = {
       ) => void
     ) => void;
     removeDownloadCoreMLModelProgressListeners: () => void;
+    onLog: (callback: (event: any, line: string) => void) => void;
+    removeLogListeners: () => void;
   };
   ffmpeg: {
     check: () => Promise<boolean>;

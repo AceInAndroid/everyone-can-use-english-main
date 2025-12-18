@@ -28,6 +28,28 @@ const logger = log.scope("use-transcribe.tsx");
 // some transcribed text may not have any punctuations
 const punctuationsPattern = /\w[.,!?](\s|$)/g;
 
+const stripNonSpeechMarkers = (text: string) => {
+  if (!text) return text;
+  // Remove common non-speech annotations that often appear in transcripts and
+  // can hurt DTW alignment (timestamps), e.g. "[laughter]", "(music)".
+  // Keep this conservative: only remove bracketed/parenthesized tags with
+  // known keywords.
+  const keywords =
+    "(laughter|laughs|chuckle|giggle|music|applause|clapping|silence|noise|sigh|breath|cough|sniff|background)";
+
+  const bracketed = new RegExp(`\\[(?:[^\\]]*\\b${keywords}\\b[^\\]]*)\\]`, "gi");
+  const parenthesized = new RegExp(
+    `\\((?:[^\\)]*\\b${keywords}\\b[^\\)]*)\\)`,
+    "gi"
+  );
+
+  return text
+    .replace(bracketed, " ")
+    .replace(parenthesized, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 export const useTranscribe = () => {
   const { EnjoyApp, user, webApi } = useContext(AppSettingsProviderContext);
   const { openai, echogardenSttConfig, setEchogardenSttConfig } = useContext(
@@ -87,6 +109,7 @@ export const useTranscribe = () => {
     } else if (service === SttEngineOptionEnum.LOCAL) {
       result = await transcribeByLocal(url, {
         language,
+        isolate,
       });
     } else if (service === SttEngineOptionEnum.ENJOY_CLOUDFLARE) {
       result = await transcribeByCloudflareAi(blob);
@@ -107,6 +130,26 @@ export const useTranscribe = () => {
     }
 
     const { segmentTimeline, transcript } = result;
+    const transcriptForAlignmentRaw = stripNonSpeechMarkers(transcript);
+    const transcriptForAlignment =
+      transcriptForAlignmentRaw && transcriptForAlignmentRaw.length > 0
+        ? transcriptForAlignmentRaw
+        : transcript;
+    const segmentTimelineForAlignment =
+      segmentTimeline && segmentTimeline.length > 0
+        ? segmentTimeline.map((seg) => ({
+            ...seg,
+            text: stripNonSpeechMarkers(seg.text),
+          }))
+        : segmentTimeline;
+
+    if (transcriptForAlignment !== transcript) {
+      setOutput((prev) =>
+        prev
+          ? `${prev}\nFiltered non-speech markers for alignment`
+          : "Filtered non-speech markers for alignment"
+      );
+    }
 
     if (!align && transcript) {
       return {
@@ -119,7 +162,7 @@ export const useTranscribe = () => {
     if (segmentTimeline && segmentTimeline.length > 0) {
       const wordTimeline = await EnjoyApp.echogarden.alignSegments(
         new Uint8Array(await blob.arrayBuffer()),
-        segmentTimeline,
+        segmentTimelineForAlignment,
         {
           engine: "dtw",
           language: language.split("-")[0],
@@ -129,7 +172,7 @@ export const useTranscribe = () => {
 
       const timeline = await EnjoyApp.echogarden.wordToSentenceTimeline(
         wordTimeline,
-        transcript,
+        transcriptForAlignment,
         language.split("-")[0]
       );
 
@@ -143,7 +186,7 @@ export const useTranscribe = () => {
       logger.info("Aligning the transcript...");
       const alignmentResult = await EnjoyApp.echogarden.align(
         new Uint8Array(await blob.arrayBuffer()),
-        transcript,
+        transcriptForAlignment,
         {
           engine: "dtw",
           language: language.split("-")[0],
@@ -240,7 +283,7 @@ export const useTranscribe = () => {
 
   const transcribeByLocal = async (
     url: string,
-    options: { language: string }
+    options: { language: string; isolate?: boolean }
   ): Promise<{
     engine: string;
     model: string;
@@ -249,6 +292,7 @@ export const useTranscribe = () => {
   }> => {
     let { language } = options || {};
     const languageCode = language.split("-")[0];
+    const isolate = Boolean(options?.isolate);
     let model: string;
     let usedEngine = echogardenSttConfig?.engine || "whisper";
 
@@ -365,10 +409,36 @@ export const useTranscribe = () => {
       }
 
       setOutput("Transcribing...");
+
+      if (isolate) {
+        const appendLine = (line: string) => {
+          setOutput((prev) => {
+            const next = prev ? `${prev}\n${line}` : line;
+            const lines = next.split("\n");
+            return lines.length > 200 ? lines.slice(lines.length - 200).join("\n") : next;
+          });
+        };
+
+        const onLog = (_event: Electron.IpcRendererEvent, line: string) => {
+          appendLine(line);
+        };
+
+        EnjoyApp.echogarden.onLog(onLog);
+        try {
+          res = await EnjoyApp.echogarden.recognize(url, {
+            language: languageCode,
+            isolate: true,
+            ...(localConfig as any),
+          });
+        } finally {
+          EnjoyApp.echogarden.removeLogListeners();
+        }
+      } else {
       res = await EnjoyApp.echogarden.recognize(url, {
         language: languageCode,
         ...(localConfig as any),
       });
+      }
     } catch (err) {
       throw new Error(t("whisperTranscribeFailed", { error: err.message }));
     }

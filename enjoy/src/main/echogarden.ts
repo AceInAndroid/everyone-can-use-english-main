@@ -542,11 +542,65 @@ class EchogardenWrapper {
   registerIpcHandlers() {
     ipcMain.handle(
       "echogarden-recognize",
-      async (_event, url: string, options: RecognitionOptions) => {
+      async (event, url: string, options: RecognitionOptions) => {
         logger.info("echogarden-recognize:", options);
         try {
           const input = enjoyUrlToPath(url);
-          return await this.recognize(input, options);
+          const isolateEnabled = Boolean((options as any)?.isolate);
+          const sender = event.sender;
+
+          if (!isolateEnabled) {
+            return await this.recognize(input, options);
+          }
+
+          // Forward source separation logs to renderer so users don't think the app is frozen.
+          const originalWrite = process.stderr.write.bind(process.stderr);
+          let buffered = "";
+          const shouldForwardLine = (line: string) => {
+            const text = line.trim();
+            if (!text) return false;
+            return (
+              text.startsWith("Convert audio ") ||
+              text.startsWith("Initialize session for MDX-NET") ||
+              text.startsWith("Using ONNX execution provider") ||
+              text.startsWith("Process segment") ||
+              text.startsWith("Join segments") ||
+              text.startsWith("Convert isolated audio") ||
+              text.startsWith("Subtract from original waveform") ||
+              text.startsWith("Postprocess audio") ||
+              text.startsWith("Total source separation time")
+            );
+          };
+
+          (process.stderr as any).write = (chunk: any, encoding?: any, cb?: any) => {
+            try {
+              const str =
+                typeof chunk === "string"
+                  ? chunk
+                  : Buffer.isBuffer(chunk)
+                    ? chunk.toString(typeof encoding === "string" ? encoding : "utf8")
+                    : String(chunk);
+
+              buffered += str;
+              let idx: number;
+              while ((idx = buffered.indexOf("\n")) >= 0) {
+                const line = buffered.slice(0, idx).replace(/\r$/, "");
+                buffered = buffered.slice(idx + 1);
+                if (shouldForwardLine(line)) {
+                  sender.send("echogarden-log", line);
+                }
+              }
+            } catch {
+              // ignore forwarding failures
+            }
+            return originalWrite(chunk as any, encoding as any, cb as any);
+          };
+
+          try {
+            return await this.recognize(input, options);
+          } finally {
+            (process.stderr as any).write = originalWrite;
+          }
         } catch (err) {
           logger.error(err);
           throw err;

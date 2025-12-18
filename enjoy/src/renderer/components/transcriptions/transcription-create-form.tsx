@@ -549,7 +549,7 @@ const TranscribeProgress = (props: {
       )}
       {transcribingOutput && (
         <div className="max-w-full rounded-lg border bg-zinc-950 p-3 dark:bg-zinc-900 h-20 overflow-y-auto">
-          <code className="px-[0.3rem] py-[0.2rem] rounded text-muted-foreground font-mono text-xs break-words">
+          <code className="px-[0.3rem] py-[0.2rem] rounded text-muted-foreground font-mono text-xs break-words whitespace-pre-wrap">
             {transcribingOutput}
           </code>
         </div>

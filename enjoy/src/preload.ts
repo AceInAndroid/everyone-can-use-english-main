@@ -612,6 +612,12 @@ contextBridge.exposeInMainWorld("__ENJOY_APP__", {
     removeDownloadCoreMLModelProgressListeners: () => {
       ipcRenderer.removeAllListeners("echogarden-download-coreml-model-progress");
     },
+    onLog: (callback: (event: IpcRendererEvent, line: string) => void) => {
+      ipcRenderer.on("echogarden-log", callback);
+    },
+    removeLogListeners: () => {
+      ipcRenderer.removeAllListeners("echogarden-log");
+    },
   },
   ffmpeg: {
     check: () => {
