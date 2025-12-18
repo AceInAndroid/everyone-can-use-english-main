@@ -472,7 +472,30 @@ const CoreMLModelCheck = (props: { model: string }) => {
 
   if (checking) return <div className="text-sm text-muted-foreground">{t("checkingCoreMLModel")}...</div>;
 
-  if (isReady) return <div className="text-sm text-green-500">{t("coreMLModelReady")}</div>;
+  const openModelsDir = async () => {
+    try {
+      const dir = await EnjoyApp.echogarden.getCoreMLModelDir(model);
+      await EnjoyApp.shell.openPath(dir);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to open models directory");
+    }
+  };
+
+  if (isReady)
+    return (
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-green-500">{t("coreMLModelReady")}</div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={openModelsDir}
+        >
+          {t("openModelsDir")}
+        </Button>
+      </div>
+    );
 
   if (downloading) {
     let percentage = 0;

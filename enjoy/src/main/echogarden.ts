@@ -657,6 +657,11 @@ class EchogardenWrapper {
     ipcMain.handle("echogarden-download-coreml-model", async (event, model) => {
       return this.downloadCoreMLModel(event.sender, model);
     });
+    ipcMain.handle("echogarden-get-coreml-model-dir", async (_event, model) => {
+      const normalizedModel = model === "large" ? "large-v2" : model;
+      const packageName = `whisper.cpp-${normalizedModel}`;
+      return await loadPackage(packageName);
+    });
   }
 
   async checkCoreMLModel(model: string) {

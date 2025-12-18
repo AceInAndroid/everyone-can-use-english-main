@@ -343,6 +343,7 @@ type EnjoyAppType = {
     }>;
     checkCoreMLModel: (model: string) => Promise<boolean>;
     downloadCoreMLModel: (model: string) => Promise<void>;
+    getCoreMLModelDir: (model: string) => Promise<string>;
     onDownloadCoreMLModelProgress: (
       callback: (
         event: any,

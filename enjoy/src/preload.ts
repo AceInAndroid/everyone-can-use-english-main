@@ -597,6 +597,9 @@ contextBridge.exposeInMainWorld("__ENJOY_APP__", {
     downloadCoreMLModel: (model: string) => {
       return ipcRenderer.invoke("echogarden-download-coreml-model", model);
     },
+    getCoreMLModelDir: (model: string) => {
+      return ipcRenderer.invoke("echogarden-get-coreml-model-dir", model);
+    },
     onDownloadCoreMLModelProgress: (
       callback: (
         event: IpcRendererEvent,

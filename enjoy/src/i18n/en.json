@@ -488,6 +488,7 @@
   "enableDTWDescription": "Use Dynamic Time Warping (DTW) to get more precise token-level timestamps for better subtitle alignment.",
   "enableCoreML": "Use Neural Engine (Core ML)",
   "enableCoreMLDescription": "Use Apple's Neural Engine via Core ML for faster inference and lower power consumption on M-series chips.",
+  "openModelsDir": "Open Models Dir",
   "relaunchIsNeededAfterChanged": "Relaunch is needed after changed",
   "reloadIsNeededAfterChanged": "Reload is needed after changed",
   "defaultAiEngine": "Default AI engine",

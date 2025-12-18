@@ -488,6 +488,7 @@
   "enableDTWDescription": "使用动态时间规整（DTW）技术来获取更精确的字级时间戳，优化字幕对齐。",
   "enableCoreML": "使用神经网络引擎（Core ML）",
   "enableCoreMLDescription": "在 Apple M 系列芯片上使用 Neural Engine 加速推理，提高效率并降低功耗。",
+  "openModelsDir": "打开模型目录",
   "relaunchIsNeededAfterChanged": "更改后需要重新启动",
   "reloadIsNeededAfterChanged": "更改后需要重新加载",
   "defaultAiEngine": "默认 AI 引擎",
