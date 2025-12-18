@@ -8,6 +8,9 @@ echo "Working directory: $(pwd)"
 # Set memory limit to prevent OOM
 export NODE_OPTIONS='--max-old-space-size=8192'
 
+# Fix for missing C++ headers on some macOS environments
+export CXXFLAGS="-I$(xcrun --show-sdk-path)/usr/include/c++/v1"
+
 echo "Starting build for macOS arm64..."
 
 # Clean previous build artifacts
