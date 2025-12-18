@@ -484,6 +484,10 @@
   "sherpaModelIsNotWorking": "Sherpa model is not working",
   "largeWhisperOnnxMayCrashOnMac": "The Whisper (ONNX) engine runs on CPU on macOS and large models may crash. Please switch to Whisper.cpp or use a smaller model (e.g. small.en).",
   "largeWhisperOnnxMayCrashOnMacSwitchingToWhisperCpp": "Large Whisper models may crash on macOS with the Whisper (ONNX) engine. Switched engine to Whisper.cpp.",
+  "enableDTW": "Token-level timestamps (DTW)",
+  "enableDTWDescription": "Use Dynamic Time Warping (DTW) to get more precise token-level timestamps for better subtitle alignment.",
+  "enableCoreML": "Use Neural Engine (Core ML)",
+  "enableCoreMLDescription": "Use Apple's Neural Engine via Core ML for faster inference and lower power consumption on M-series chips.",
   "relaunchIsNeededAfterChanged": "Relaunch is needed after changed",
   "reloadIsNeededAfterChanged": "Reload is needed after changed",
   "defaultAiEngine": "Default AI engine",
@@ -646,7 +650,6 @@
   "decodingWaveform": "Decoding waveform",
   "failedToDecodeWaveform": "Failed to decode waveform",
   "wmaWillBeTranscoded": "WMA is not supported for waveform playback. It will be transcoded to MP3 automatically.",
-  
   "transcribedSuccessfully": "Transcribed successfully",
   "transcribing": "Transcribing",
   "notTranscribedYet": "Not transcribed yet",

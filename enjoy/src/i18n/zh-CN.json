@@ -484,6 +484,10 @@
   "sherpaModelIsNotWorking": "Sherpa 模型无法正常工作，请确认模型文件已内置并重试",
   "largeWhisperOnnxMayCrashOnMac": "macOS 上 Whisper（ONNX）只能使用 CPU 推理，大模型可能导致崩溃。请切换到 Whisper.cpp 或使用更小的模型（例如 small.en）。",
   "largeWhisperOnnxMayCrashOnMacSwitchingToWhisperCpp": "在 macOS 上使用 Whisper（ONNX）运行大模型可能会崩溃，已自动切换到 Whisper.cpp。",
+  "enableDTW": "字级时间戳（DTW）",
+  "enableDTWDescription": "使用动态时间规整（DTW）技术来获取更精确的字级时间戳，优化字幕对齐。",
+  "enableCoreML": "使用神经网络引擎（Core ML）",
+  "enableCoreMLDescription": "在 Apple M 系列芯片上使用 Neural Engine 加速推理，提高效率并降低功耗。",
   "relaunchIsNeededAfterChanged": "更改后需要重新启动",
   "reloadIsNeededAfterChanged": "更改后需要重新加载",
   "defaultAiEngine": "默认 AI 引擎",
@@ -646,7 +650,6 @@
   "decodingWaveform": "正在解码波形",
   "failedToDecodeWaveform": "解码波形失败",
   "wmaWillBeTranscoded": "WMA 格式无法用于波形/播放，将自动转码为 MP3。",
-  
   "transcribedSuccessfully": "语音转文本成功",
   "transcribing": "正在语音转文本",
   "notTranscribedYet": "尚未语音转文本",

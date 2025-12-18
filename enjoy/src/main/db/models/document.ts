@@ -130,9 +130,12 @@ export class Document extends Model<Document> {
   async sync(): Promise<void> {
     if (this.isSynced) return;
 
+    const accessToken = (await UserSetting.accessToken()) as string;
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger,
     });
 
@@ -212,9 +215,12 @@ export class Document extends Model<Document> {
 
   @AfterDestroy
   static async destroyRemote(document: Document) {
+    const accessToken = (await UserSetting.accessToken()) as string;
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger,
     });
 

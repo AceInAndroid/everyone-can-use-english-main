@@ -76,6 +76,13 @@ class EchogardenWrapper {
             "whisper",
             "main"
           );
+
+          // Neural Engine (Core ML) support
+          // Note: The whisper.cpp binary must be compiled with Core ML support.
+          // In Mac M-series, if enableCoreML is set, we ensure GPU is enabled (Core ML uses ANE/GPU).
+          if ((options.whisperCpp as any).enableCoreML) {
+            options.whisperCpp.enableGPU = true;
+          }
         }
 
         // Call the original recognize function

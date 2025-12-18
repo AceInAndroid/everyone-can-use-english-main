@@ -287,6 +287,8 @@ type EchogardenSttConfigType = {
     temperature?: number;
     prompt?: string;
     enableGPU?: boolean;
+    enableDTW?: boolean;
+    enableCoreML?: boolean;
   };
 };
 

@@ -37,6 +37,8 @@ const echogardenSttConfigSchema = z.object({
     temperature: z.number(),
     prompt: z.string(),
     enableGPU: z.boolean(),
+    enableDTW: z.boolean(),
+    enableCoreML: z.boolean(),
   }),
 });
 
@@ -70,6 +72,8 @@ export const EchogardenSttSettings = (props: {
         temperature: 0.1,
         prompt: "",
         enableGPU: false,
+        enableDTW: true,
+        enableCoreML: platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64",
         ...echogardenSttConfig?.whisperCpp,
       },
     },
@@ -98,8 +102,8 @@ export const EchogardenSttSettings = (props: {
         ...data.whisper,
       },
       whisperCpp: {
-        model: data.whisperCpp.model || selectedModel,
         ...data.whisperCpp,
+        model: selectedModel,
       },
     });
   };
@@ -342,6 +346,50 @@ export const EchogardenSttSettings = (props: {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="whisperCpp.enableDTW"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center space-x-2">
+                      <FormLabel>{t("enableDTW")}</FormLabel>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </div>
+                    <FormDescription>
+                      {t("enableDTWDescription")}
+                    </FormDescription>
+                  </FormItem>
+                )}
+              />
+
+              {platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64" && (
+                <FormField
+                  control={form.control}
+                  name="whisperCpp.enableCoreML"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center space-x-2">
+                        <FormLabel>{t("enableCoreML")}</FormLabel>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </div>
+                      <FormDescription>
+                        {t("enableCoreMLDescription")}
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+              )}
             </>
           )}
         </div>

@@ -59,9 +59,12 @@ export class Note extends Model<Note> {
   async sync(): Promise<void> {
     if (this.isSynced) return;
 
+    const accessToken = (await UserSetting.accessToken()) as string;
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger,
     });
 
@@ -121,9 +124,12 @@ export class Note extends Model<Note> {
 
   @AfterDestroy
   static async destroyRemote(note: Note) {
+    const accessToken = (await UserSetting.accessToken()) as string;
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger,
     });
 

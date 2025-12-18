@@ -117,9 +117,12 @@ export class Segment extends Model<Segment> {
   async sync() {
     if (this.isSynced) return;
 
+    const accessToken = (await UserSetting.accessToken()) as string;
+    if (!accessToken) return;
+
     const webApi = new Client({
       baseUrl: settings.apiUrl(),
-      accessToken: (await UserSetting.accessToken()) as string,
+      accessToken,
       logger,
     });
     return webApi.syncSegment(this.toJSON()).then(() => {
