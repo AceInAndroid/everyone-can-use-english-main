@@ -17,8 +17,12 @@ import { t } from "i18next";
 export const ResetAllButton = (props: { children: React.ReactNode }) => {
   const { EnjoyApp } = useContext(AppSettingsProviderContext);
 
-  const reset = () => {
-    EnjoyApp.app.reset();
+  const reset = async () => {
+    try {
+      await EnjoyApp.app.reset();
+    } catch (error: any) {
+      toast.error(String(error?.message || error));
+    }
   };
 
   return (

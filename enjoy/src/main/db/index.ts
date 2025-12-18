@@ -111,6 +111,15 @@ db.connect = async () => {
     if (!dbPath) {
       throw new Error("Db path is not ready");
     }
+    // SQLite won't create intermediate directories.
+    fs.ensureDirSync(path.dirname(dbPath));
+    try {
+      if (fs.existsSync(dbPath) && fs.statSync(dbPath).isDirectory()) {
+        fs.removeSync(dbPath);
+      }
+    } catch (err) {
+      logger.error(err);
+    }
 
     const sequelize = new Sequelize({
       dialect: "sqlite",

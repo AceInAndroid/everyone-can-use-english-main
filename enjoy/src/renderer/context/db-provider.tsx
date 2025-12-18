@@ -69,7 +69,12 @@ export const DbProvider = ({ children }: { children: React.ReactNode }) => {
 
     if (state === "disconnected") {
       setTimeout(() => {
-        connect();
+        EnjoyApp.appSettings
+          .get("user.id")
+          .then((userId) => {
+            if (userId) connect();
+          })
+          .catch(() => {});
       }, 1000);
     }
   }, [state]);

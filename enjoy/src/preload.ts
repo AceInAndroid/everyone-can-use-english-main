@@ -14,10 +14,10 @@ contextBridge.exposeInMainWorld("__ENJOY_APP__", {
       return ipcRenderer.invoke("app-platform-info");
     },
     reset: () => {
-      ipcRenderer.invoke("app-reset");
+      return ipcRenderer.invoke("app-reset");
     },
     resetSettings: () => {
-      ipcRenderer.invoke("app-reset-settings");
+      return ipcRenderer.invoke("app-reset-settings");
     },
     relaunch: () => {
       ipcRenderer.invoke("app-relaunch");

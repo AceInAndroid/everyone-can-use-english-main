@@ -16,7 +16,13 @@ import settings from "@main/settings";
 import downloader from "@main/downloader";
 import fs from "fs-extra";
 import log from "@main/logger";
-import { DISCUSS_URL, REPO_URL, WEB_API_URL, WS_URL } from "@/constants";
+import {
+  DISCUSS_URL,
+  LIBRARY_PATH_SUFFIX,
+  REPO_URL,
+  WEB_API_URL,
+  WS_URL,
+} from "@/constants";
 import { AudibleProvider, TedProvider, YoutubeProvider } from "@main/providers";
 import Ffmpeg from "@main/ffmpeg";
 import { Waveform } from "./waveform";
@@ -29,6 +35,7 @@ import { UserSetting } from "@main/db/models";
 import { t } from "i18next";
 import { format } from "util";
 import pkg from "../../package.json" with { type: "json" };
+import { AppSettingsKeyEnum } from "@/types/enums";
 
 const __dirname = import.meta.dirname;
 
@@ -466,12 +473,55 @@ main.init = async () => {
   });
 
   ipcMain.handle("app-reset", async () => {
-    const userDataPath = settings.userDataPath();
+    const errors: string[] = [];
 
-    await db.disconnect();
+    const removePath = (label: string, target: unknown) => {
+      if (!target || typeof target !== "string") return;
+      try {
+        fs.removeSync(target);
+      } catch (err: any) {
+        const message = `${label}: failed to remove ${target}: ${String(
+          err?.message || err
+        )}`;
+        logger.error(message);
+        errors.push(message);
+      }
+    };
 
-    fs.removeSync(userDataPath);
-    fs.removeSync(settings.file());
+    try {
+      await db.disconnect();
+    } catch (err: any) {
+      const message = `db.disconnect failed: ${String(err?.message || err)}`;
+      logger.error(message);
+      errors.push(message);
+    }
+
+    // Remove all personal data: settings + library.
+    // Avoid calling settings.libraryPath()/userDataPath() here because they may
+    // attempt to create directories and can throw when permissions are broken.
+    try {
+      const library = settings.getSync(AppSettingsKeyEnum.LIBRARY);
+      if (typeof library === "string") {
+        if (path.parse(library).base === LIBRARY_PATH_SUFFIX) {
+          removePath("library", library);
+        } else {
+          removePath(
+            "library",
+            path.join(library, LIBRARY_PATH_SUFFIX)
+          );
+        }
+      }
+    } catch (err: any) {
+      const message = `read library path failed: ${String(err?.message || err)}`;
+      logger.error(message);
+      errors.push(message);
+    }
+
+    removePath("settings", settings.file());
+
+    if (errors.length > 0) {
+      throw new Error(errors.join("\n"));
+    }
 
     app.relaunch();
     app.exit();
