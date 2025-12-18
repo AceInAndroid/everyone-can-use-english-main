@@ -16,6 +16,7 @@ import settings from "@main/settings";
 import downloader from "@main/downloader";
 import fs from "fs-extra";
 import log from "@main/logger";
+import { execSync } from "child_process";
 import {
   DISCUSS_URL,
   LIBRARY_PATH_SUFFIX,
@@ -469,6 +470,30 @@ main.init = async () => {
       platform: process.platform,
       arch: process.arch,
       version: process.getSystemVersion(),
+    };
+  });
+
+  ipcMain.handle("app-get-chip-info", () => {
+    if (process.platform !== "darwin" || process.arch !== "arm64") return null;
+
+    const tryExec = (cmd: string) => {
+      try {
+        return execSync(cmd, { encoding: "utf8" }).trim();
+      } catch {
+        return null;
+      }
+    };
+
+    // On Apple Silicon, `machdep.cpu.brand_string` is typically available and
+    // looks like "Apple M1" / "Apple M2 Pro" / "Apple M4".
+    const brandString = tryExec("sysctl -n machdep.cpu.brand_string");
+
+    // Fallbacks: model identifier like "Mac14,2".
+    const hwModel = tryExec("sysctl -n hw.model");
+
+    return {
+      brandString: brandString || undefined,
+      hwModel: hwModel || undefined,
     };
   });
 

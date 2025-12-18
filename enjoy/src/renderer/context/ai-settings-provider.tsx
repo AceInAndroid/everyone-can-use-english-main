@@ -11,6 +11,7 @@ import {
 import { GPT_PROVIDERS, TTS_PROVIDERS } from "@renderer/components";
 import { WHISPER_MODELS } from "@/constants";
 import log from "electron-log/renderer";
+import { getWhisperCppRecommendedTuning } from "@renderer/utils/apple-silicon";
 
 const logger = log.scope("ai-settings-provider.tsx");
 
@@ -166,12 +167,13 @@ export const AISettingsProvider = ({
     const isAppleSilicon =
       platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64";
 
-    const defaultWhisperCppThreadCount = () => {
-      const cpuCount = globalThis.navigator?.hardwareConcurrency || 4;
-      // A conservative default that works well across M1/M2/M3/M4 variants.
-      // Avoid oversubscribing to keep latency stable and reduce thermal throttling.
-      return Math.min(8, Math.max(4, Math.floor(cpuCount * 0.75)));
-    };
+    const chipInfo = isAppleSilicon ? await EnjoyApp.app.getChipInfo() : null;
+    const tuning = isAppleSilicon
+      ? getWhisperCppRecommendedTuning({
+          chipInfo,
+          hardwareConcurrency: globalThis.navigator?.hardwareConcurrency,
+        })
+      : null;
 
     const normalizeWhisperCppModel = (model?: string) => {
       if (!model) return model;
@@ -186,8 +188,8 @@ export const AISettingsProvider = ({
         normalizedModelRaw === "tiny" || normalizedModelRaw === "tiny.en"
           ? preferredDefaultModel
           : normalizedModelRaw;
-      const threadCount = defaultWhisperCppThreadCount();
-      const decoderCap = Math.min(8, threadCount);
+      const threadCount = tuning?.threadCount ?? 6;
+      const decoderCap = tuning?.decoderCap ?? Math.min(8, threadCount);
       return {
         engine: "whisper.cpp" as const,
         whisper: {
@@ -202,8 +204,9 @@ export const AISettingsProvider = ({
           threadCount,
           splitCount: 1,
           // Defaults not too aggressive; user can increase in settings.
-          topCandidateCount: Math.min(5, decoderCap),
-          beamCount: Math.min(5, decoderCap),
+          topCandidateCount:
+            tuning?.topCandidateCount ?? Math.min(5, decoderCap),
+          beamCount: tuning?.beamCount ?? Math.min(5, decoderCap),
           temperature: 0.0,
           prompt: "",
           enableGPU: true,
@@ -290,7 +293,7 @@ export const AISettingsProvider = ({
           whisperCpp.beamCount == null
         ) {
           const threadCount =
-            whisperCpp.threadCount ?? defaultWhisperCppThreadCount();
+            whisperCpp.threadCount ?? tuning?.threadCount ?? 6;
           const decoderCap = Math.min(8, threadCount);
           nextConfig = {
             ...config,
@@ -304,12 +307,16 @@ export const AISettingsProvider = ({
               splitCount: whisperCpp.splitCount ?? 1,
               topCandidateCount:
                 Math.min(
-                  whisperCpp.topCandidateCount ?? Math.min(5, decoderCap),
+                  whisperCpp.topCandidateCount ??
+                    tuning?.topCandidateCount ??
+                    Math.min(5, decoderCap),
                   decoderCap
                 ) || 1,
               beamCount:
                 Math.min(
-                  whisperCpp.beamCount ?? Math.min(5, decoderCap),
+                  whisperCpp.beamCount ??
+                    tuning?.beamCount ??
+                    Math.min(5, decoderCap),
                   decoderCap
                 ) || 1,
             },
@@ -317,7 +324,7 @@ export const AISettingsProvider = ({
         } else {
           // Safety: clamp to avoid whisper.cpp crashing on "too many decoders requested".
           const threadCount =
-            whisperCpp.threadCount ?? defaultWhisperCppThreadCount();
+            whisperCpp.threadCount ?? tuning?.threadCount ?? 6;
           const decoderCap = Math.min(8, threadCount);
           const nextTop = Math.min(whisperCpp.topCandidateCount, decoderCap);
           const nextBeam = Math.min(whisperCpp.beamCount, decoderCap);

@@ -1,6 +1,7 @@
 type EnjoyAppType = {
   app: {
     getPlatformInfo: () => Promise<PlatformInfo>;
+    getChipInfo: () => Promise<{ brandString?: string; hwModel?: string } | null>;
     reset: () => Promise<void>;
     resetSettings: () => Promise<void>;
     relaunch: () => Promise<void>;

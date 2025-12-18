@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld("__ENJOY_APP__", {
     getPlatformInfo: () => {
       return ipcRenderer.invoke("app-platform-info");
     },
+    getChipInfo: () => {
+      return ipcRenderer.invoke("app-get-chip-info");
+    },
     reset: () => {
       return ipcRenderer.invoke("app-reset");
     },

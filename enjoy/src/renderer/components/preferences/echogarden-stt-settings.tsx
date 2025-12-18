@@ -23,6 +23,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { WHISPER_MODELS } from "@/constants";
 import { toast } from "@renderer/components/ui";
+import { getWhisperCppRecommendedTuning } from "@renderer/utils/apple-silicon";
 
 const echogardenSttConfigSchema = z.object({
   engine: z.enum(["whisper", "whisper.cpp"]),
@@ -58,6 +59,10 @@ export const EchogardenSttSettings = (props: {
     arch: string;
     version: string;
   }>();
+  const [chipInfo, setChipInfo] = useState<{
+    brandString?: string;
+    hwModel?: string;
+  } | null>(null);
   const [packagesDir, setPackagesDir] = useState<string>();
 
   const form = useForm<z.infer<typeof echogardenSttConfigSchema>>({
@@ -90,11 +95,12 @@ export const EchogardenSttSettings = (props: {
 
   const isAppleSilicon =
     platformInfo?.platform === "darwin" && platformInfo?.arch === "arm64";
-  const recommendedThreadCount = () => {
-    const cpuCount = globalThis.navigator?.hardwareConcurrency || 4;
-    return Math.min(8, Math.max(4, Math.floor(cpuCount * 0.75)));
-  };
-  const decoderCap = Math.min(8, recommendedThreadCount());
+  const tuning = isAppleSilicon
+    ? getWhisperCppRecommendedTuning({
+        chipInfo,
+        hardwareConcurrency: globalThis.navigator?.hardwareConcurrency,
+      })
+    : null;
 
   const onSubmit = async (data: z.infer<typeof echogardenSttConfigSchema>) => {
     const selectedModel = data.whisper.model || "tiny";
@@ -134,6 +140,12 @@ export const EchogardenSttSettings = (props: {
     EnjoyApp.app.getPlatformInfo().then(setPlatformInfo);
     EnjoyApp.echogarden.getPackagesDir().then(setPackagesDir);
   }, []);
+
+  useEffect(() => {
+    if (platformInfo?.platform !== "darwin" || platformInfo?.arch !== "arm64")
+      return;
+    EnjoyApp.app.getChipInfo().then(setChipInfo).catch(() => setChipInfo(null));
+  }, [platformInfo?.platform, platformInfo?.arch]);
 
   return (
     <Form {...form}>
@@ -315,7 +327,7 @@ export const EchogardenSttSettings = (props: {
           {form.watch("engine") === "whisper.cpp" && (
             <>
               <div className="text-xs text-muted-foreground">
-                {t("whisperCppTuningHint", { threads: recommendedThreadCount(), cap: decoderCap })}
+                {t("whisperCppTuningHint", { threads: tuning?.threadCount || 6, cap: tuning?.decoderCap || 8 })}
               </div>
               <FormField
                 control={form.control}

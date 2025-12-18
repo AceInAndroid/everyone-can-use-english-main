@@ -20,6 +20,7 @@ import { RecognitionResult } from "echogarden/dist/api/API.js";
 import take from "lodash/take";
 import sortedUniqBy from "lodash/sortedUniqBy";
 import log from "electron-log/renderer";
+import { getWhisperCppRecommendedTuning } from "@renderer/utils/apple-silicon";
 
 const logger = log.scope("use-transcribe.tsx");
 
@@ -250,10 +251,6 @@ export const useTranscribe = () => {
     const languageCode = language.split("-")[0];
     let model: string;
     let usedEngine = echogardenSttConfig?.engine || "whisper";
-    const defaultWhisperCppThreadCount = () => {
-      const cpuCount = globalThis.navigator?.hardwareConcurrency || 4;
-      return Math.min(8, Math.max(4, Math.floor(cpuCount * 0.75)));
-    };
 
     let res: RecognitionResult;
     logger.info("Start transcribing from Whisper...");
@@ -283,8 +280,11 @@ export const useTranscribe = () => {
           platformInfo?.arch === "arm64"
         ) {
           const normalizedModel = model === "large" ? "large-v2" : model;
-          const threadCount = defaultWhisperCppThreadCount();
-          const decoderCap = Math.min(8, threadCount);
+          const chipInfo = await EnjoyApp.app.getChipInfo();
+          const tuning = getWhisperCppRecommendedTuning({
+            chipInfo,
+            hardwareConcurrency: globalThis.navigator?.hardwareConcurrency,
+          });
           const nextConfig = {
             ...localConfig,
             engine: "whisper.cpp" as const,
@@ -295,10 +295,10 @@ export const useTranscribe = () => {
             whisperCpp: {
               ...(localConfig.whisperCpp || {}),
               model: normalizedModel,
-              threadCount,
+              threadCount: tuning.threadCount,
               splitCount: 1,
-              topCandidateCount: Math.min(5, decoderCap),
-              beamCount: Math.min(5, decoderCap),
+              topCandidateCount: tuning.topCandidateCount,
+              beamCount: tuning.beamCount,
               enableCoreML: true,
               enableGPU: true,
               enableDTW: false,
