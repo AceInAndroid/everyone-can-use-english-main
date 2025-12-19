@@ -121,9 +121,14 @@ package-lock.json
 */playwright/.cache/
 */tmp/
 enjoy/enjoy/tmp/
+enjoy/scripts/enjoy/tmp/
 
 # whisper models
 ggml-*.bin
+
+# Core ML models
+*.mlmodelc.zip
+*.mlmodelc/
 
 # ffmpeg wasm
 ffmpeg-core.wasm
@@ -138,3 +143,4 @@ enjoy/lib/dictionaries
 public/jupyter-notebooks/*.mp3
 
 *.sqlite
+*.sqlite.*
