@@ -6,7 +6,15 @@ import camelcaseKeys from "camelcase-keys";
 import { map, forEach, sum, filter, cloneDeep } from "lodash";
 import * as Diff from "diff";
 import { PronunciationAssessmentEngineEnum } from "@/types/enums";
-import { transcribeSherpaWasm } from "@renderer/lib/sherpa-wasm";
+import { alignSherpaWasm, transcribeSherpaWasm } from "@renderer/lib/sherpa-wasm";
+import {
+  AlignmentOp,
+  SherpaWordTiming,
+  WordToken,
+  buildWordTimelineFromSherpa,
+  padWordWindow,
+  parseSherpaWordTimings,
+} from "@renderer/lib/sherpa-alignment";
 
 const THIRTY_SECONDS = 30 * 1000;
 const ONE_MINUTE = 60 * 1000;
@@ -27,7 +35,6 @@ export const usePronunciationAssessments = () => {
       recording = await EnjoyApp.recordings.findOne({ targetId });
     }
 
-    EnjoyApp.recordings.sync(recording.id);
     EnjoyApp.recordings.sync(recording.id);
     // Use clean audio for Sherpa/Scoring (user recording of video? No, recording.src is user mic. Wait.)
     // If recording.src is user mic, we probably don't need to denoise the laugh track (it's in the reference, not the user recording).
@@ -548,23 +555,114 @@ const extractHypothesisWordTimeline = (
 
 const clampScore = (n: number) => Math.max(0, Math.min(100, n));
 
-const assessBySherpaWasm = async (params: {
+const secondsToTicks = (seconds: number) => Math.max(0, Math.round(seconds * 1e7));
+
+const summarizeSherpaAlignment = (params: {
+  tokens: WordToken[];
+  sherpaWords: SherpaWordTiming[];
+  ops: AlignmentOp[];
+}): {
+  words: PronunciationAssessmentWordResultType[];
+  matches: number;
+  substitutions: number;
+  deletions: number;
+  insertions: number;
+} => {
+  const { tokens, sherpaWords, ops } = params;
+  const words: PronunciationAssessmentWordResultType[] = [];
+  let matches = 0;
+  let substitutions = 0;
+  let deletions = 0;
+  let insertions = 0;
+  let lastEnd = 0;
+
+  ops.forEach((op) => {
+    if (op.type === "equal" || op.type === "replace") {
+      const meta = sherpaWords[op.hypIndex];
+      const word = tokens[op.refIndex];
+      const { start, end } = padWordWindow(meta.startTime, meta.endTime);
+      lastEnd = end;
+      if (op.type === "equal") {
+        matches += 1;
+      } else {
+        substitutions += 1;
+      }
+      words.push({
+        word: word?.original || meta.original,
+        offset: secondsToTicks(start),
+        duration: secondsToTicks(end - start),
+        pronunciationAssessment: {
+          accuracyScore: op.type === "equal" ? 100 : 20,
+          errorType: op.type === "equal" ? "None" : "Mispronunciation",
+        },
+        phonemes: [],
+      } as any);
+      return;
+    }
+
+    if (op.type === "delete") {
+      deletions += 1;
+      const word = tokens[op.refIndex];
+      const start = Math.max(0, lastEnd - 0.1);
+      const end = start + 0.4;
+      lastEnd = end;
+      words.push({
+        word: word?.original || "",
+        offset: secondsToTicks(start),
+        duration: secondsToTicks(end - start),
+        pronunciationAssessment: { accuracyScore: 0, errorType: "Omission" },
+        phonemes: [],
+      } as any);
+      return;
+    }
+
+    if (op.type === "insert") {
+      insertions += 1;
+      const meta = sherpaWords[op.hypIndex];
+      const { start, end } = padWordWindow(meta.startTime, meta.endTime);
+      lastEnd = end;
+      words.push({
+        word: meta.original,
+        offset: secondsToTicks(start),
+        duration: secondsToTicks(end - start),
+        pronunciationAssessment: { accuracyScore: 0, errorType: "Insertion" },
+        phonemes: [],
+      } as any);
+    }
+  });
+
+  return { words, matches, substitutions, deletions, insertions };
+};
+
+const assessBySherpaDtwFallback = async (params: {
   EnjoyApp: any;
-  pronunciationAssessmentConfig?: PronunciationAssessmentConfigType;
   blob: Blob;
   url: string;
   language: string;
   reference: string;
   durationMs?: number;
+  recognizedTranscript?: string;
+  recognizedConfidence?: number;
 }) => {
-  const { EnjoyApp, pronunciationAssessmentConfig, blob, url, language, reference, durationMs } =
-    params;
-
-  const sherpaModelId = pronunciationAssessmentConfig?.sherpa?.modelId || "en-us-small";
+  const {
+    EnjoyApp,
+    blob,
+    url,
+    language,
+    reference,
+    durationMs,
+    recognizedTranscript,
+    recognizedConfidence,
+  } = params;
 
   // Sherpa runs in the renderer (WASM); we still use Echogarden's DTW alignment to get word-level timing.
-  const recognized = await transcribeSherpaWasm({ blob });
-  const transcript: string = recognized?.transcript || "";
+  let transcript: string = recognizedTranscript || "";
+  let confidence = recognizedConfidence ?? 0;
+  if (!transcript) {
+    const recognized = await transcribeSherpaWasm({ blob });
+    transcript = recognized?.transcript || "";
+    confidence = recognized?.confidence ?? confidence;
+  }
 
   const languageCode = (language || "en-US").split("-")[0];
   const alignmentResult = await EnjoyApp.echogarden.align(
@@ -650,8 +748,7 @@ const assessBySherpaWasm = async (params: {
 
   const detailResult = {
     engine: "sherpa_wasm",
-    sherpa: { modelId: sherpaModelId },
-    confidence: recognized?.confidence ?? 0,
+    confidence,
     display: transcript,
     itn: transcript,
     lexical: transcript,
@@ -663,6 +760,103 @@ const assessBySherpaWasm = async (params: {
       pronScore: pronunciationScore,
     },
     words,
+  };
+
+  return {
+    pronunciationScore,
+    accuracyScore,
+    completenessScore,
+    fluencyScore,
+    detailResult,
+  };
+};
+
+const assessBySherpaWasm = async (params: {
+  EnjoyApp: any;
+  pronunciationAssessmentConfig?: PronunciationAssessmentConfigType;
+  blob: Blob;
+  url: string;
+  language: string;
+  reference: string;
+  durationMs?: number;
+}) => {
+  const { EnjoyApp, blob, url, language, reference, durationMs } = params;
+
+  const recognized = await transcribeSherpaWasm({ blob });
+  const transcript = (recognized?.transcript || "").trim();
+  const confidence = recognized?.confidence ?? 0;
+  const referenceText = (reference || "").trim();
+  const alignmentReference = referenceText || transcript;
+
+  const fallback = () =>
+    assessBySherpaDtwFallback({
+      EnjoyApp,
+      blob,
+      url,
+      language,
+      reference: alignmentReference,
+      durationMs,
+      recognizedTranscript: transcript,
+      recognizedConfidence: confidence,
+    });
+
+  if (!alignmentReference) {
+    return fallback();
+  }
+
+  let sherpaWords: SherpaWordTiming[] = [];
+  let alignmentTokens: WordToken[] = [];
+  let ops: AlignmentOp[] = [];
+
+  try {
+    const alignment = await alignSherpaWasm({
+      blob,
+      transcript: alignmentReference,
+    });
+    const durationSec = alignment?.duration || (typeof durationMs === "number" ? durationMs / 1000 : 0);
+    sherpaWords = parseSherpaWordTimings(alignment?.alignment, durationSec);
+    if (sherpaWords.length) {
+      const sherpaAlignment = buildWordTimelineFromSherpa(alignmentReference, sherpaWords);
+      alignmentTokens = sherpaAlignment.tokens;
+      ops = sherpaAlignment.ops;
+    }
+  } catch (error) {
+    console.warn("Sherpa alignment failed, falling back to DTW", error);
+    return fallback();
+  }
+
+  if (!sherpaWords.length || !alignmentTokens.length || !ops.length) {
+    return fallback();
+  }
+
+  const summary = summarizeSherpaAlignment({ tokens: alignmentTokens, sherpaWords, ops });
+  const n = Math.max(1, alignmentTokens.length);
+  const wer = (summary.substitutions + summary.deletions + summary.insertions) / n;
+  const accuracy = summary.matches / n;
+  const completeness = (n - summary.deletions) / n;
+  const fluency = durationMs
+    ? Math.min(1, (summary.words.length / Math.max(1, durationMs / 1000)) / 3) * 100
+    : accuracy * 100;
+
+  const pronunciationScore = clampScore((1 - wer) * 100);
+  const accuracyScore = clampScore(accuracy * 100);
+  const completenessScore = clampScore(completeness * 100);
+  const fluencyScore = clampScore(fluency);
+
+  const detailResult = {
+    engine: "sherpa_wasm",
+    confidence,
+    display: transcript,
+    itn: transcript,
+    lexical: transcript,
+    markedItn: transcript,
+    pronunciationAssessment: {
+      accuracyScore,
+      completenessScore,
+      fluencyScore,
+      pronScore: pronunciationScore,
+    },
+    words: summary.words,
   };
 
   return {

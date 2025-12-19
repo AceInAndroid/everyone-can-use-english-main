@@ -1,6 +1,7 @@
 import { app } from "electron";
 import path from "path";
 import fs from "fs-extra";
+import os from "os";
 import { execFile } from "child_process";
 import { ipcMain } from "electron";
 import FfmpegWrapper from "@main/ffmpeg";
@@ -130,28 +131,85 @@ export class AudioProcessorService {
     }
 
     private resolveDeepFilterPath(): string | null {
-        let binaryPath = "";
-        if (app.isPackaged) {
-            // In production, binary should be in resources path
-            // e.g. /Applications/Enjoy.app/Contents/Resources/bin/deep-filter
-            binaryPath = path.join(process.resourcesPath, "bin", "deep-filter");
-        } else {
-            // In development, assume 'bin/deep-filter' at project root
-            // process.cwd() is usually the project root in electron-forge dev
-            binaryPath = path.join(process.cwd(), "bin", "deep-filter");
+        const configured = this.expandPath(
+            settings.getSync(AppSettingsKeyEnum.AUDIO_PROCESSOR_DEEPFILTER_PATH) as string
+        );
+        const envCandidate = this.expandPath(
+            process.env.DEEPFILTERNET_PATH || process.env.DEEP_FILTER_PATH
+        );
+
+        const binaryNames = process.platform === "win32" ? ["deep-filter.exe", "deep-filter"] : ["deep-filter"];
+        const baseBin = app.isPackaged
+            ? path.join(process.resourcesPath, "bin")
+            : path.join(process.cwd(), "bin");
+
+        const searchDirs = [
+            baseBin,
+            path.join(app.getAppPath(), "bin"),
+            path.join(settings.libraryPath(), "bin"),
+            path.join(os.homedir(), ".local", "bin"),
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+        ];
+
+        const envPath = process.env.PATH || "";
+        envPath
+            .split(path.delimiter)
+            .filter(Boolean)
+            .forEach((dir) => searchDirs.push(dir));
+
+        const seen = new Set<string>();
+        const candidates: string[] = [];
+        const pushCandidate = (candidate?: string | null) => {
+            if (!candidate) return;
+            const normalized = path.resolve(candidate);
+            if (!seen.has(normalized)) {
+                seen.add(normalized);
+                candidates.push(normalized);
+            }
+        };
+
+        pushCandidate(configured);
+        pushCandidate(envCandidate);
+
+        searchDirs.forEach((dir) => {
+            binaryNames.forEach((name) => pushCandidate(path.join(dir, name)));
+        });
+
+        for (const candidate of candidates) {
+            if (this.isExecutable(candidate)) {
+                return candidate;
+            }
         }
 
-        if (fs.existsSync(binaryPath)) {
-            return binaryPath;
-        }
-
-        // Try finding in PATH if not found in explicit locations
-        // This is bit trickier with execFile, but we returned absolute path above.
-        // If we return just "deep-filter", execFile might look in PATH.
-        // But explicit path is safer for bundled app.
-
-        logger.warn(`DeepFilterNet binary not found at ${binaryPath}`);
+        logger.warn(
+            "DeepFilterNet binary not found. Configure the binary path in Preferences → Audio or install `deep-filter` so it is available on PATH."
+        );
         return null;
+    }
+
+    private expandPath(target?: string | null) {
+        if (!target) return null;
+        const trimmed = target.trim();
+        if (!trimmed) return null;
+        if (trimmed.startsWith("~")) {
+            return path.join(os.homedir(), trimmed.slice(1));
+        }
+        return trimmed;
+    }
+
+    private isExecutable(filePath: string) {
+        try {
+            const stat = fs.statSync(filePath);
+            if (!stat.isFile()) return false;
+            if (process.platform !== "win32") {
+                fs.accessSync(filePath, fs.constants.X_OK);
+            }
+            return true;
+        } catch (err) {
+            return false;
+        }
     }
 
     private shouldDenoise(): boolean {

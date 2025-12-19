@@ -1,6 +1,7 @@
 /* global Module, createOnlineRecognizer */
 
 let recognizer = null;
+let offlineRecognizer = null;
 let expectedSampleRate = 16000;
 let initPromise = null;
 
@@ -127,6 +128,59 @@ const init = async (payload) => {
       tokens: localTokens,
     })
   );
+
+  const makeOfflineConfig = (paths) => ({
+    featConfig: { sampleRate: expectedSampleRate, featureDim: 80 },
+    modelConfig: {
+      transducer: {
+        encoder: paths.encoder,
+        decoder: paths.decoder,
+        joiner: paths.joiner,
+      },
+      paraformer: { model: "" },
+      zipformer2Ctc: { model: "" },
+      nemoCtc: { model: "" },
+      whisper: { encoder: "", decoder: "" },
+      tdnn: { model: "" },
+      senseVoice: { model: "" },
+      moonshine: { encoder: "", decoder: "" },
+      fireRedAsr: { encoder: "", decoder: "" },
+      dolphin: { encoder: "", decoder: "" },
+      tokens: paths.tokens,
+      numThreads: payload.numThreads ?? 1,
+      provider: "cpu",
+      debug: 0,
+      modelType: "",
+      modelingUnit: "",
+      bpeVocab: "",
+    },
+    lmConfig: { model: "", scale: 1.0 },
+    hr: { dictDir: "", lexicon: "", ruleFsts: "" },
+    decodingMethod: "greedy_search",
+    maxActivePaths: 4,
+    hotwordsFile: "",
+    hotwordsScore: 1.5,
+    ruleFsts: "",
+    ruleFars: "",
+    blankPenalty: 0,
+  });
+
+  if (typeof self.OfflineRecognizer === "function") {
+    try {
+      offlineRecognizer = new self.OfflineRecognizer(
+        makeOfflineConfig({
+          encoder: localEncoder,
+          decoder: localDecoder,
+          joiner: localJoiner,
+          tokens: localTokens,
+        }),
+        self.Module
+      );
+    } catch (err) {
+      console.warn("Failed to initialize Sherpa offline recognizer", err);
+      offlineRecognizer = null;
+    }
+  }
 };
 
 const transcribe = (payload) => {
@@ -151,6 +205,23 @@ const transcribe = (payload) => {
   };
 };
 
+const alignWithOfflineRecognizer = (payload) => {
+  if (!offlineRecognizer) {
+    throw new Error("Sherpa offline recognizer not initialized");
+  }
+
+  const stream = offlineRecognizer.createStream();
+  stream.acceptWaveform(expectedSampleRate, payload.samples);
+  offlineRecognizer.decode(stream);
+  const result = offlineRecognizer.getResult(stream);
+  stream.free?.();
+
+  return {
+    alignment: result,
+    duration: payload.samples.length / expectedSampleRate,
+  };
+};
+
 self.onmessage = async (event) => {
   const msg = event.data;
   try {
@@ -166,6 +237,13 @@ self.onmessage = async (event) => {
       await initPromise;
       const out = transcribe(msg.payload);
       reply({ type: "result", id: msg.id, payload: out });
+      return;
+    }
+    if (msg.type === "align") {
+      if (!initPromise) throw new Error("Worker not initialized");
+      await initPromise;
+      const out = alignWithOfflineRecognizer(msg.payload);
+      reply({ type: "alignment", id: msg.id, payload: out });
       return;
     }
   } catch (err) {

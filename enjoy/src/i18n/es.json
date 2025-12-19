@@ -959,5 +959,10 @@
   "checkingForUpdate": "Buscando actualización",
   "updateAvailable": "Actualización disponible",
   "quitAndInstall": "Salir e instalar",
-  "pleaseSelect": "Por favor, selecciona"
+  "pleaseSelect": "Por favor, selecciona",
+  "enableDeepFilterNet": "Mejorar la calidad del audio",
+  "enableDeepFilterNetDescription": "Usa DeepFilterNet para reducir el ruido y obtener puntuaciones más precisas (puede tardar un poco más).",
+  "deepFilterBinaryPath": "Ruta del binario de DeepFilter",
+  "deepFilterBinaryPathDescription": "Déjalo vacío para la detección automática o indica el ejecutable de deep-filter si lo instalaste en otra carpeta.",
+  "chooseExecutable": "Examinar"
 }

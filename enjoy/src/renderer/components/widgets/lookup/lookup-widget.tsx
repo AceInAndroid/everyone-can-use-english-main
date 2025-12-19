@@ -235,6 +235,9 @@ export const VocabularyPronunciationAssessment = (props: { word: string }) => {
           setRecording(recording);
           setAssessment(recording.pronunciationAssessment);
         }
+      })
+      .catch(() => {
+        // Ignore not-found errors so the widget can continue without noisy logs.
       });
   };
 

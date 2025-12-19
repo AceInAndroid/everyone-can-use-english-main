@@ -974,5 +974,8 @@
   "quitAndInstall": "Quit and install",
   "pleaseSelect": "Please select",
   "enableDeepFilterNet": "Enhance Audio Quality",
-  "enableDeepFilterNetDescription": "Use DeepFilterNet to denoise audio for better scoring accuracy. (May take longer processing time)"
+  "enableDeepFilterNetDescription": "Use DeepFilterNet to denoise audio for better scoring accuracy. (May take longer processing time)",
+  "deepFilterBinaryPath": "DeepFilter binary path",
+  "deepFilterBinaryPathDescription": "Leave blank to auto-detect. Set this to the deep-filter executable if you installed it elsewhere.",
+  "chooseExecutable": "Browse"
 }

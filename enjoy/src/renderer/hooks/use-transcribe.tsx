@@ -21,6 +21,11 @@ import take from "lodash/take";
 import sortedUniqBy from "lodash/sortedUniqBy";
 import log from "electron-log/renderer";
 import { getWhisperCppRecommendedTuning } from "@renderer/utils/apple-silicon";
+import { alignSherpaWasm } from "@renderer/lib/sherpa-wasm";
+import {
+  buildWordTimelineFromSherpa,
+  parseSherpaWordTimings,
+} from "@renderer/lib/sherpa-alignment";
 
 const logger = log.scope("use-transcribe.tsx");
 
@@ -153,10 +158,49 @@ export const useTranscribe = () => {
       );
     }
 
+    const languageCode = language.split("-")[0];
+
     if (!align && transcript) {
       return {
         ...result,
         timeline: [],
+        url,
+      };
+    }
+
+    let sherpaTimeline: TimelineEntry[] | null = null;
+    if (align && transcriptForAlignment) {
+      try {
+        const alignment = await alignSherpaWasm({
+          blob,
+          transcript: transcriptForAlignment,
+        });
+        const sherpaWords = parseSherpaWordTimings(
+          alignment?.alignment,
+          alignment?.duration || 0
+        );
+        if (sherpaWords.length) {
+          const { timeline: wordTimelineEntries } = buildWordTimelineFromSherpa(
+            transcriptForAlignment,
+            sherpaWords
+          );
+          if (wordTimelineEntries.length) {
+            sherpaTimeline = await EnjoyApp.echogarden.wordToSentenceTimeline(
+              wordTimelineEntries,
+              transcriptForAlignment,
+              languageCode
+            );
+          }
+        }
+      } catch (err) {
+        logger.warn("Sherpa alignment failed, falling back to DTW", err);
+      }
+    }
+
+    if (sherpaTimeline?.length) {
+      return {
+        ...result,
+        timeline: sherpaTimeline,
         url,
       };
     }
@@ -167,7 +211,7 @@ export const useTranscribe = () => {
         segmentTimelineForAlignment,
         {
           engine: "dtw",
-          language: language.split("-")[0],
+          language: languageCode,
           isolate,
         }
       );
@@ -175,7 +219,7 @@ export const useTranscribe = () => {
       const timeline = await EnjoyApp.echogarden.wordToSentenceTimeline(
         wordTimeline,
         transcriptForAlignment,
-        language.split("-")[0]
+        languageCode
       );
 
       return {
@@ -191,7 +235,7 @@ export const useTranscribe = () => {
         transcriptForAlignment,
         {
           engine: "dtw",
-          language: language.split("-")[0],
+          language: languageCode,
           isolate,
         }
       );

@@ -972,5 +972,10 @@
   "checkingForUpdate": "正在检查更新",
   "updateAvailable": "有新版本",
   "quitAndInstall": "退出并安装新版本",
-  "pleaseSelect": "请选择"
+  "pleaseSelect": "请选择",
+  "enableDeepFilterNet": "提升音频质量",
+  "enableDeepFilterNetDescription": "使用 DeepFilterNet 降噪以获得更准确的评分（处理时间会更长）。",
+  "deepFilterBinaryPath": "DeepFilter 可执行文件路径",
+  "deepFilterBinaryPathDescription": "留空则自动检测，若已手动安装请指向 deep-filter 可执行文件。",
+  "chooseExecutable": "浏览"
 }

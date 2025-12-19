@@ -103,7 +103,6 @@ package-lock.json
 .vscode-test
 
 # Yarn Berry (v2+)
-# https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored
 .yarn/*
 !.yarn/cache
 !.yarn/patches
@@ -138,6 +137,5 @@ enjoy/lib/dictionaries
 public/jupyter-notebooks/*.mp3
 
 *.sqlite
-enjoy/scripts/enjoy/tmp/settings.json
-.gitignore
+enjoy/scripts/enjoy/tmp/
 .gitignore
