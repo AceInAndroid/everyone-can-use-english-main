@@ -5,6 +5,10 @@ import {
 } from "@xenova/transformers";
 import { distance as levenshteinDistance } from "fastest-levenshtein";
 
+// Force browser behavior in Electron renderer: disable local FS lookups.
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
 export type ScoreResult = {
   score: number;
   recognizedText: string;
@@ -28,12 +32,11 @@ export class TransformersScoringService {
   private asrPipeline: AutomaticSpeechRecognitionPipeline | null = null;
   private loadingPromise: Promise<void> | null = null;
 
-  // Use base for dev speed; swap to large for highest accuracy.
+  // Dev: base (fast). Prod: switch to large for better accuracy.
   private readonly modelName = "Xenova/wav2vec2-base-960h";
+  // private readonly modelName = "Xenova/wav2vec2-large-960h-lv60-self";
 
-  private constructor() {
-    env.useBrowserCache = true;
-  }
+  private constructor() {}
 
   static getInstance() {
     if (!TransformersScoringService.instance) {
@@ -73,18 +76,21 @@ export class TransformersScoringService {
 
   async score(audioBlob: Blob, referenceText: string): Promise<ScoreResult> {
     await this.init();
+
     if (!this.asrPipeline) {
       throw new Error("ASR pipeline not ready");
     }
 
     const audioUrl = URL.createObjectURL(audioBlob);
+
     try {
       const output = await this.asrPipeline(audioUrl, {
-        return_timestamps: "none",
+        return_timestamps: "word",
         chunk_length_s: 30,
       });
 
       const recognizedText = (output?.text ?? "").trim();
+
       const normalizedReference = normalize(referenceText);
       const normalizedRecognized = normalize(recognizedText);
 
@@ -112,10 +118,11 @@ export class TransformersScoringService {
 }
 
 // --- helpers ---
+
 function normalize(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9\\s]/g, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
