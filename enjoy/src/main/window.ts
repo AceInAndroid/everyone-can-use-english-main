@@ -663,14 +663,22 @@ ${log}
         return systemPreferences.getMediaAccessStatus(mediaType) === "granted";
 
       if (process.platform === "darwin") {
+        const version = process.getSystemVersion?.() ?? "0.0.0";
+        const askSupported =
+          typeof systemPreferences.askForMediaAccess === "function" &&
+          isMacVersionAtLeast(version, "10.14"); // Mojave introduced runtime prompts
+
         const status = systemPreferences.getMediaAccessStatus(mediaType);
-        logger.debug("system-preferences-media-access", status);
-        if (status !== "granted") {
+        logger.debug("system-preferences-media-access", { status, version, askSupported });
+
+        if (status === "granted") return true;
+        if (askSupported) {
           const result = await systemPreferences.askForMediaAccess(mediaType);
           return result;
-        } else {
-          return true;
         }
+
+        // For old macOS (<10.14) or if askForMediaAccess is missing, fall back to status.
+        return status === "granted";
       }
     }
   );
@@ -930,5 +938,23 @@ ${log}
 
   main.win = mainWindow;
 };
+
+function isMacVersionAtLeast(current: string, target: string): boolean {
+  const toParts = (v: string) =>
+    v
+      .split(".")
+      .map((n) => parseInt(n, 10))
+      .filter((n) => !Number.isNaN(n));
+  const c = toParts(current);
+  const t = toParts(target);
+  const len = Math.max(c.length, t.length);
+  for (let i = 0; i < len; i++) {
+    const cv = c[i] ?? 0;
+    const tv = t[i] ?? 0;
+    if (cv > tv) return true;
+    if (cv < tv) return false;
+  }
+  return true;
+}
 
 export default main;
