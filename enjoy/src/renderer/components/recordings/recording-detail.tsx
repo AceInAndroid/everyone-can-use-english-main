@@ -1,5 +1,4 @@
 import {
-  PronunciationAssessmentFulltextResult,
   PronunciationAssessmentScoreResult,
   WavesurferPlayer,
 } from "@renderer/components";
@@ -76,23 +75,18 @@ export const RecordingDetail = (props: {
 
       <Separator />
 
-      {result ? (
-        <PronunciationAssessmentFulltextResult
-          className="py-4"
-          words={result.words}
-          currentTime={currentTime}
-          src={recording.src}
-          onPlayOrigin={onPlayOrigin}
-        />
-      ) : (
-        <ScrollArea className="min-h-72 py-4 px-8 select-text">
-          {(recording?.referenceText || "").split("\n").map((line, index) => (
-            <div key={index} className="text-xl font-serif tracking-wide mb-2">
-              {line}
-            </div>
-          ))}
-        </ScrollArea>
-      )}
+      <ScrollArea className="min-h-72 py-4 px-8 select-text">
+        {(recording?.referenceText || "").split("\n").map((line, index) => (
+          <div key={index} className="mb-2 text-xl font-serif tracking-wide">
+            {line}
+          </div>
+        ))}
+        {result?.words?.length ? (
+          <div className="mt-4 text-sm text-muted-foreground">
+            Recognized ({result.words.length} tokens)
+          </div>
+        ) : null}
+      </ScrollArea>
 
       <Separator />
 

@@ -21,9 +21,7 @@ import {
   CamdictLookupResult,
   scoreColor,
   PronunciationAssessmentScoreDetail,
-  PronunciationAssessmentFulltextResult,
   PronunciationAssessmentScoreResult,
-  PronunciationAssessmentPhonemeResult,
 } from "@renderer/components";
 import {
   ChevronLeft,
@@ -373,9 +371,6 @@ export const VocabularyPronunciationAssessment = (props: { word: string }) => {
       {assessment && (
         <CollapsibleContent className="mt-2">
           <div className="space-y-2">
-            <PronunciationAssessmentPhonemeResult
-              result={assessment.result.words[0]}
-            />
             <PronunciationAssessmentScoreDetail
               assessment={assessment}
               fluencyScore={false}
