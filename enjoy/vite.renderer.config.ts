@@ -29,6 +29,15 @@ export default defineConfig((env) => {
             src: "assets/**/*",
             dest: "assets",
           },
+          {
+            src: [
+              "node_modules/onnxruntime-web/dist/*.wasm",
+              "node_modules/onnxruntime-web/dist/*.mjs",
+              "node_modules/onnxruntime-web/dist/*.js",
+              "node_modules/onnxruntime-web/dist/*.worker.js",
+            ],
+            dest: "assets/ort",
+          },
         ],
       }),
     ],
