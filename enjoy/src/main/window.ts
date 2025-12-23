@@ -9,6 +9,8 @@ import {
   systemPreferences,
   MenuItemConstructorOptions,
   autoUpdater,
+  protocol,
+  net,
 } from "electron";
 import path from "path";
 import db from "@main/db";
@@ -76,6 +78,27 @@ main.init = async () => {
   if (main.win) {
     main.win.show();
     return;
+  }
+
+  // Register enjoy:// protocol handler for library files (guarded to avoid duplicate registration)
+  try {
+    const alreadyHandled = await protocol.isProtocolHandled("enjoy");
+    if (!alreadyHandled) {
+      await protocol.handle("enjoy", (request) => {
+        const raw = request.url.replace(/^enjoy:\/\//, "");
+        const decoded = decodeURIComponent(raw);
+        if (decoded.startsWith("library/")) {
+          const rel = decoded.replace(/^library\//, "");
+          const filePath = path.join(settings.libraryPath(), rel);
+          return net.fetch("file://" + filePath);
+        }
+        logger.warn(`[Enjoy Protocol] Unknown path pattern: ${decoded}`);
+        return new Response("Not Found", { status: 404 });
+      });
+      logger.info("Registered enjoy:// protocol handler");
+    }
+  } catch (err) {
+    logger.warn("Failed to register enjoy:// protocol handler", err);
   }
 
   // Prepare local database

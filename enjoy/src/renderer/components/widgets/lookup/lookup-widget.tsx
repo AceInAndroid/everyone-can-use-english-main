@@ -35,7 +35,6 @@ import {
 } from "lucide-react";
 import { useAudioRecorder } from "react-audio-voice-recorder";
 import { t } from "i18next";
-import { usePronunciationAssessments } from "@/renderer/hooks";
 
 export const LookupWidget = () => {
   const { EnjoyApp } = useContext(AppSettingsProviderContext);
@@ -204,7 +203,6 @@ export const VocabularyPronunciationAssessment = (props: { word: string }) => {
   } = useAudioRecorder(recorderConfig, (exception) => {
     toast.error(exception.message);
   });
-  const { createAssessment } = usePronunciationAssessments();
   const [access, setAccess] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [recording, setRecording] = useState<RecordingType>();

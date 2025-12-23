@@ -11,7 +11,6 @@ import {
   LibrarySettings,
   SttSettings,
   TtsSettings,
-  PronunciationAssessmentSettings,
   OpenaiSettings,
   ProxySettings,
   ResetSettings,
@@ -24,6 +23,7 @@ import {
   DictSettings,
   DiskUsage,
   AudioSettings,
+  DeveloperToolsSettings,
 } from "@renderer/components";
 import { useContext, useState } from "react";
 import { Tooltip } from "react-tooltip";
@@ -50,8 +50,6 @@ export const Preferences = () => {
           <SttSettings />
           <Separator />
           <TtsSettings />
-          <Separator />
-          <PronunciationAssessmentSettings />
           <Separator />
           <DefaultEngineSettings />
           <Separator />
@@ -92,6 +90,8 @@ export const Preferences = () => {
           <AudioSettings />
           <Separator />
           <RecorderSettings />
+          <Separator />
+          <DeveloperToolsSettings />
           <Separator />
           <ResetSettings />
           <Separator />

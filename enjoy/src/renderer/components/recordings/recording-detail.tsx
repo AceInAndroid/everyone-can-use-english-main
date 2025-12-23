@@ -4,11 +4,10 @@ import {
 } from "@renderer/components";
 import { Separator, ScrollArea, toast } from "@renderer/components/ui";
 import { useState, useContext, useEffect } from "react";
-import { AISettingsProviderContext, AppSettingsProviderContext } from "@renderer/context";
+import { AppSettingsProviderContext } from "@renderer/context";
 import { Tooltip } from "react-tooltip";
-import { usePronunciationAssessments } from "@renderer/hooks";
 import { t } from "i18next";
-import { PronunciationAssessmentEngineEnum } from "@/types/enums";
+import { usePronunciationAssessments } from "@renderer/hooks";
 
 export const RecordingDetail = (props: {
   recording: RecordingType;
@@ -27,27 +26,19 @@ export const RecordingDetail = (props: {
   const [currentTime, setCurrentTime] = useState<number>(0);
 
   const { learningLanguage } = useContext(AppSettingsProviderContext);
-  const { pronunciationAssessmentConfig } = useContext(AISettingsProviderContext);
   const { createAssessment } = usePronunciationAssessments();
   const [assessing, setAssessing] = useState(false);
 
   const assess = () => {
     if (assessing) return;
     if (result) return;
-
-    const engine =
-      pronunciationAssessmentConfig?.engine || PronunciationAssessmentEngineEnum.AZURE;
-    if (engine === PronunciationAssessmentEngineEnum.AZURE && recording.duration > 60 * 1000) {
-      toast.error(t("recordingIsTooLongToAssess"));
-      return;
-    }
     setAssessing(true);
     createAssessment({
       recording,
       reference: recording.referenceText?.replace(/[—]/g, ", ") || "",
       language: recording.language || learningLanguage,
     })
-      .then((assessment) => {
+      .then((assessment: any) => {
         onAssess && onAssess(assessment);
         setPronunciationAssessment(assessment);
       })
@@ -60,8 +51,15 @@ export const RecordingDetail = (props: {
   };
 
   useEffect(() => {
-    assess();
-  }, [recording]);
+    if (!result) {
+      assess();
+    } else {
+      setPronunciationAssessment(
+        props.pronunciationAssessment || recording.pronunciationAssessment
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording, props.pronunciationAssessment]);
 
   return (
     <div className="">

@@ -16,7 +16,6 @@ export * from "./library-settings";
 export * from "./disk-usage";
 export * from "./stt-settings";
 export * from "./tts-settings";
-export * from "./pronunciation-assessment-settings";
 
 export * from "./user-settings";
 export * from "./email-settings";
@@ -41,3 +40,4 @@ export * from "./echogarden-stt-settings";
 
 export * from "./deposit";
 export * from "./audio-settings";
+export * from "./developer-tools-settings";
