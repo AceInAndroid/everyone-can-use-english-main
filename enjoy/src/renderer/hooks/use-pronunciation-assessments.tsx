@@ -1,8 +1,6 @@
 import { useContext } from "react";
 import { AppSettingsProviderContext } from "@renderer/context";
 import { TransformersScoringService } from "@renderer/services/TransformersScoringService";
-import path from "path";
-import fs from "fs/promises";
 
 type CreateAssessmentParams = {
   recording: RecordingType;
@@ -17,20 +15,20 @@ type CreateAssessmentParams = {
  * New pronunciation assessment hook using frontend Transformers scoring.
  */
 export const usePronunciationAssessments = () => {
-  const { EnjoyApp, libraryPath } = useContext(AppSettingsProviderContext);
+  const { EnjoyApp } = useContext(AppSettingsProviderContext);
 
   const resolveAudioBlob = async (audioUrl: string): Promise<Blob> => {
-    if (audioUrl.startsWith("enjoy://library/") && libraryPath) {
-      const relative = audioUrl.replace("enjoy://library/", "");
-      const filePath = path.join(libraryPath, relative);
-      const buf = await fs.readFile(filePath);
-      return new Blob([buf]);
+    if (!audioUrl) {
+      throw new Error("Recording has no audio source");
     }
-    const resp = await fetch(audioUrl);
-    if (!resp.ok) {
-      throw new Error(`Failed to fetch audio: ${resp.statusText}`);
+
+    const response = await fetch(audioUrl);
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch audio (${response.status} ${response.statusText})`
+      );
     }
-    return await resp.blob();
+    return await response.blob();
   };
 
   const createAssessment = async (params: CreateAssessmentParams) => {
