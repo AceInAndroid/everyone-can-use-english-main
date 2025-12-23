@@ -92,7 +92,7 @@ main.init = async () => {
           const filePath = path.join(settings.libraryPath(), rel);
           return net.fetch("file://" + filePath);
         }
-        logger.warn(`[Enjoy Protocol] Unknown path pattern: ${decoded}`);
+        logger.warn(`[EchoLearn Protocol] Unknown path pattern: ${decoded}`);
         return new Response("Not Found", { status: 404 });
       });
       logger.info("Registered enjoy:// protocol handler");

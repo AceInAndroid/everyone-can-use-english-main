@@ -38,7 +38,7 @@ export default () => {
       >
         <div className="text-center">
           <div className="text-lg mb-6">
-            {t("welcomeTo")} <span className="font-semibold">Enjoy App</span>
+            {t("welcomeTo")} <span className="font-semibold">EchoLearn App</span>
           </div>
 
           <div className="">

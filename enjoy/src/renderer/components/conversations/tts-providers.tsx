@@ -2,7 +2,7 @@ import { t } from "i18next";
 
 export const TTS_PROVIDERS: { [key: string]: any } = {
   enjoyai: {
-    name: "EnjoyAI",
+    name: "EchoLearn",
     models: ["openai/tts-1", "openai/tts-1-hd", "azure/speech"],
     voices: {
       openai: ["alloy", "echo", "fable", "onyx", "nova", "shimmer"],

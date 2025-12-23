@@ -1,4 +1,4 @@
-# Enjoy App
+# EchoLearn App
 
 This is a Electron App.
 

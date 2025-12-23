@@ -2,7 +2,7 @@ import { t } from "i18next";
 
 export const GPT_PROVIDERS: { [key: string]: any } = {
   enjoyai: {
-    name: "EnjoyAI",
+    name: "EchoLearn",
     models: [
       "gpt-4o-mini",
       "gpt-4o",

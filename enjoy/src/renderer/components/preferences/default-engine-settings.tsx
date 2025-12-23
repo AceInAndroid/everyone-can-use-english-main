@@ -140,7 +140,7 @@ export const DefaultEngineSettings = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {!isGuest && (
-                            <SelectItem value="enjoyai">EnjoyAI</SelectItem>
+                            <SelectItem value="enjoyai">EchoLearn</SelectItem>
                           )}
                           <SelectItem value="openai">OpenAI</SelectItem>
                         </SelectContent>

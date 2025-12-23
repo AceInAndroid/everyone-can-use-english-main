@@ -2,9 +2,9 @@
   "type": "module",
   "private": true,
   "name": "enjoy",
-  "productName": "Enjoy",
-  "version": "0.8.5",
-  "description": "Enjoy desktop app",
+  "productName": "EchoLearn",
+  "version": "0.9.1",
+  "description": "EchoLearn desktop app",
   "main": ".vite/build/main.js",
   "types": "./src/types.d.ts",
   "scripts": {

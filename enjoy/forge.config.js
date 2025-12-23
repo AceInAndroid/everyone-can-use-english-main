@@ -13,7 +13,7 @@ const config = {
       unpackDir: `{.vite/build/lib,.vite/build/samples,node_modules/ffmpeg-static,node_modules/@andrkrn/ffprobe-static,node_modules/onnxruntime-node/bin/napi-v3/${os.platform()}/${os.arch()},lib/dictionaries}`,
     },
     icon: "./assets/icon",
-    name: "Enjoy",
+    name: "EchoLearn",
     executableName: "enjoy",
     osxSign: {
       entitlements: "entitlements.plist",
@@ -21,11 +21,11 @@ const config = {
     },
     extendInfo: {
       NSMicrophoneUsageDescription:
-        "Enjoy needs access to your microphone for speech recognition and pronunciation assessment.",
+        "EchoLearn needs access to your microphone for speech recognition and pronunciation assessment.",
     },
     protocols: [
       {
-        name: "Enjoy",
+        name: "EchoLearn",
         schemes: ["enjoy"],
       },
     ],
@@ -56,7 +56,7 @@ const config = {
       config: () => ({
         options: {
           name: "enjoy",
-          productName: "Enjoy",
+          productName: "EchoLearn",
           icon: "./assets/icon.png",
           mimeType: ["x-scheme-handler/enjoy"],
         },
@@ -65,7 +65,7 @@ const config = {
     // new MakerRpm({
     //   options: {
     //     name: "enjoy",
-    //     productName: "Enjoy",
+    //     productName: "EchoLearn",
     //     icon: "./assets/icon.png",
     //     mimeType: ["x-scheme-handler/enjoy"],
     //   },
