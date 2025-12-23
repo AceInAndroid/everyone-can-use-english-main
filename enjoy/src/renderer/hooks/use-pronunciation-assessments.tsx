@@ -11,9 +11,6 @@ type CreateAssessmentParams = {
   onProgress?: (data: any) => void;
 };
 
-/**
- * New pronunciation assessment hook using frontend Transformers scoring.
- */
 export const usePronunciationAssessments = () => {
   const { EnjoyApp } = useContext(AppSettingsProviderContext);
 
@@ -33,48 +30,45 @@ export const usePronunciationAssessments = () => {
 
   const createAssessment = async (params: CreateAssessmentParams) => {
     const { recording, onProgress } = params;
-    if (!recording) throw new Error("Recording is required for assessment");
+    if (!recording) throw new Error("Recording required");
 
-    let reference = params.reference || recording.referenceText || "";
+    const reference = params.reference || recording.referenceText || "";
     const language = params.language || recording.language;
     const targetId = params.targetId || recording.id;
     const targetType = params.targetType || "Recording";
 
-    // Fetch audio blob (processed/clean if available)
     let audioUrl = recording.src;
     try {
       const processed = await EnjoyApp.audioProcessor?.process(recording.src);
-      audioUrl = processed?.clean || recording.src;
+      if (processed?.clean) audioUrl = processed.clean;
     } catch {
-      // fallback to original recording.src
+      // ignore processing failures and fall back to original src
     }
+
     const blob = await resolveAudioBlob(audioUrl);
 
-    // Run frontend scoring
     const service = TransformersScoringService.getInstance();
     await service.init(onProgress);
     const result = await service.score(blob, reference);
 
-    const resultPayload = {
-      recognizedText: result.recognizedText || "",
-      referenceText: result.referenceText || "",
-      score: Number(result.score) || 0,
-    };
+    console.log("📊 Calculated Scores:", result);
 
-    const assessmentPayload: any = {
+    const assessmentPayload = {
       targetId,
       targetType,
-      pronunciationScore: resultPayload.score,
-      accuracyScore: resultPayload.score,
-      completenessScore: resultPayload.score,
-      fluencyScore: resultPayload.score,
-      prosodyScore: resultPayload.score,
+      pronunciationScore: result.score,
+      accuracyScore: result.accuracy,
+      completenessScore: result.completeness,
+      fluencyScore: result.fluency,
+      prosodyScore: Math.round((result.fluency + result.accuracy) / 2),
       grammarScore: 0,
       vocabularyScore: 0,
       topicScore: 0,
       result: {
         engine: "transformers_js",
-        ...resultPayload,
+        recognizedText: result.recognizedText,
+        referenceText: result.referenceText,
+        score: result.score,
       },
       language,
     };
