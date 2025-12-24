@@ -130,14 +130,16 @@ class EchogardenWrapper {
     // However, ensureRawAudio logic below might be doing conversion checks.
     // Since we want to fix the hang, passing the file path is safer than piping large buffers.
 
-    // const rawAudio = await this.ensureRawAudio(inputFile, 16000);
-    // const sourceAsWave = this.encodeRawAudioToWave(rawAudio);
+    const rawAudio = await this.ensureRawAudio(inputFile, 16000);
+    const sourceAsWave = this.encodeRawAudioToWave(rawAudio);
 
     const outBase = path.join(
       settings.cachePath(),
       `whispercpp-${Date.now()}-${randomBytes(6).toString("hex")}`
     );
     const outJsonPath = `${outBase}.json`;
+    const tmpWavPath = `${outBase}.wav`;
+    await fs.writeFile(tmpWavPath, sourceAsWave);
 
     const language = (options as any).language || "auto";
     const threads = whisperCppOptions.threadCount ?? 4;
@@ -182,7 +184,7 @@ class EchogardenWrapper {
       "0",
       "--flash-attn",
       "--file",
-      inputFile
+      tmpWavPath
     ];
 
     if (whisperCppOptions.prompt) {
@@ -230,6 +232,7 @@ class EchogardenWrapper {
     const resultObject = fs.readJsonSync(outJsonPath) as any;
     try {
       fs.removeSync(outJsonPath);
+      fs.removeSync(tmpWavPath);
     } catch {
       // ignore
     }
