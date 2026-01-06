@@ -410,9 +410,27 @@ class EchogardenWrapper {
           process.arch === "arm64" &&
           Boolean((options.whisperCpp as any)?.enableCoreML);
 
-        const recognizer = useCoreMLWhisperCpp
-          ? this.recognizeWhisperCppWithCoreML(sampleFile, options)
-          : Echogarden.recognize(sampleFile, options);
+        const recognizerRequest = async () => {
+          if (useCoreMLWhisperCpp) {
+            try {
+              return await this.recognizeWhisperCppWithCoreML(sampleFile, options);
+            } catch (err) {
+              logger.error(
+                "Core ML inference failed, falling back to standard CPU/Metal inference:",
+                err
+              );
+              // Fallback: disable Core ML for this run and use standard method
+              if (options.whisperCpp) {
+                (options.whisperCpp as any).enableCoreML = false;
+              }
+              return await Echogarden.recognize(sampleFile, options);
+            }
+          } else {
+            return await Echogarden.recognize(sampleFile, options);
+          }
+        };
+
+        const recognizer = recognizerRequest();
 
         // Call the original recognize function
         Promise.resolve(recognizer)
