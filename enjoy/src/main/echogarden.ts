@@ -153,8 +153,10 @@ class EchogardenWrapper {
     // whisper.cpp has an internal decoder limit that can be lower than
     // requested `--best-of` / `--beam-size` (often tied to thread count).
     // Clamp to avoid "too many decoders requested" which can crash the process.
-    const bestOf = Math.max(1, Math.min(requestedBestOf, threads));
-    const beamSize = Math.max(1, Math.min(requestedBeamSize, threads));
+    // For M-series, we can allow slightly higher values if threads >= 6.
+    const decoderLimit = threads >= 6 ? Math.max(8, threads) : threads;
+    const bestOf = Math.max(1, Math.min(requestedBestOf, decoderLimit));
+    const beamSize = Math.max(1, Math.min(requestedBeamSize, decoderLimit));
     const repetitionThreshold = whisperCppOptions.repetitionThreshold ?? 2.4;
     const temperature = whisperCppOptions.temperature ?? 0.0;
     const temperatureIncrement = whisperCppOptions.temperatureIncrement ?? 0.2;
@@ -212,6 +214,10 @@ class EchogardenWrapper {
       const child = spawn(executablePath, args, {
         cwd: modelDir,
         stdio: ["ignore", "ignore", "pipe"],
+        env: {
+          ...process.env,
+          GGML_METAL_PATH_RESOURCES: path.dirname(executablePath),
+        },
       });
 
       child.on("error", reject);
@@ -303,7 +309,7 @@ class EchogardenWrapper {
       transcript,
       timeline: segmentTimeline,
       wordTimeline: [] as TimelineEntry[],
-      language: language === "auto" ? "en" : language,
+      language: language === "auto" ? "en" : language, // Default to en if auto
       inputRawAudio: null as any,
     };
   }
@@ -351,7 +357,17 @@ class EchogardenWrapper {
                 fs.constants.X_OK
               );
               logger.info("Whisper executable has execute permissions.");
+            } catch (err) {
+              logger.warn("Whisper executable missing execute permissions, attempting to fix...", err);
+              try {
+                fs.chmodSync(options.whisperCpp.executablePath, 0o755);
+                logger.info("Fixed permissions for Whisper executable.");
+              } catch (chmodErr) {
+                logger.error("Failed to fix permissions for Whisper executable:", chmodErr);
+              }
+            }
 
+            try {
               // Helper to run command safely
               try {
                 const output = execSync(`"${options.whisperCpp.executablePath}" --help`).toString();

@@ -17,9 +17,8 @@ export default defineConfig((env) => {
   const define = getBuildDefine(forgeEnv);
   const staticCopyTargets = [
     {
-      src: `lib/youtubedr/${
-        process.env.PACKAGE_OS_ARCH || os.arch()
-      }/${os.platform()}/*`,
+      src: `lib/youtubedr/${process.env.PACKAGE_OS_ARCH || os.arch()
+        }/${os.platform()}/*`,
       dest: "lib/youtubedr",
     },
     {
@@ -38,9 +37,8 @@ export default defineConfig((env) => {
 
   if (os.platform() === "darwin") {
     staticCopyTargets.push({
-      src: `lib/whisper.cpp/${
-        process.env.PACKAGE_OS_ARCH || os.arch()
-      }/${os.platform()}/*`,
+      src: `lib/whisper.cpp/${process.env.PACKAGE_OS_ARCH || os.arch()
+        }/${os.platform()}/**/*`,
       dest: "lib/whisper",
     });
   }

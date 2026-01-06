@@ -16,16 +16,16 @@ export function getWhisperCppRecommendedTuning(params: {
 
   const gen =
     brand.includes("m4") ? 4 :
-    brand.includes("m3") ? 3 :
-    brand.includes("m2") ? 2 :
-    brand.includes("m1") ? 1 :
-    0;
+      brand.includes("m3") ? 3 :
+        brand.includes("m2") ? 2 :
+          brand.includes("m1") ? 1 :
+            0;
 
   const tier =
     brand.includes("ultra") ? "ultra" :
-    brand.includes("max") ? "max" :
-    brand.includes("pro") ? "pro" :
-    "base";
+      brand.includes("max") ? "max" :
+        brand.includes("pro") ? "pro" :
+          "base";
 
   // Baseline targets:
   // - M1 base: conservative
@@ -50,17 +50,17 @@ export function getWhisperCppRecommendedTuning(params: {
     decoderTarget = 5;
   } else if (gen === 3 && (tier === "pro" || tier === "max" || tier === "ultra")) {
     threadTarget = 8;
-    decoderTarget = tier === "pro" ? 6 : 7;
+    decoderTarget = tier === "pro" ? 7 : 8;
   } else if (gen === 4 && tier === "base") {
     threadTarget = 8;
     decoderTarget = 6;
   } else if (gen === 4 && (tier === "pro" || tier === "max" || tier === "ultra")) {
-    threadTarget = 8;
-    decoderTarget = tier === "pro" ? 7 : 8;
+    threadTarget = 10;
+    decoderTarget = 8;
   }
 
   // Finalize with platform constraints.
-  const threadCount = Math.min(8, Math.max(2, Math.min(threadTarget, hardwareConcurrency)));
+  const threadCount = Math.min(16, Math.max(2, Math.min(threadTarget, hardwareConcurrency)));
   const decoderCap = Math.min(8, threadCount);
 
   // Must stay <= decoderCap to avoid whisper.cpp "too many decoders requested".
