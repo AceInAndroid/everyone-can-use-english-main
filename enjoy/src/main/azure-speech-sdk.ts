@@ -59,9 +59,9 @@ export class AzureSpeechSdk {
               sdk.CancellationDetails.fromResult(result);
             logger.debug(
               "CANCELED: Reason=" +
-                cancellationDetails.reason +
-                " ErrorDetails=" +
-                cancellationDetails.errorDetails
+              cancellationDetails.reason +
+              " ErrorDetails=" +
+              cancellationDetails.errorDetails
             );
             reject(new Error(cancellationDetails.errorDetails));
             break;

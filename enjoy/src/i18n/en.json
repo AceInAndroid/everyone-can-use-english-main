@@ -266,6 +266,8 @@
   "confirm": "Confirm",
   "continue": "continue",
   "save": "Save",
+  "clear": "Clear",
+  "chooseFile": "Choose file",
   "delete": "Delete",
   "edit": "Edit",
   "retry": "Retry",
@@ -974,5 +976,8 @@
   "quitAndInstall": "Quit and install",
   "pleaseSelect": "Please select",
   "enableDeepFilterNet": "Enhance Audio Quality",
-  "enableDeepFilterNetDescription": "Use DeepFilterNet to denoise audio for better scoring accuracy. (May take longer processing time)"
+  "enableDeepFilterNetDescription": "Use DeepFilterNet to denoise audio for better scoring accuracy. (May take longer processing time)",
+  "deepFilterBinaryPath": "DeepFilter executable",
+  "deepFilterBinaryPathDescription": "Provide a custom path to your downloaded deep-filter binary or leave blank to use the bundled/path lookup.",
+  "deepFilterBinaryPathPlaceholder": "e.g. /Users/me/Downloads/deep-filter"
 }

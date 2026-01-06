@@ -128,4 +128,12 @@ export const MIME_TYPES: Record<string, string> = {
   ".aac": "audio/aac",
   ".flac": "audio/flac",
   ".wma": "audio/x-ms-wma",
+  ".mp4": "video/mp4",
+  ".m4v": "video/x-m4v",
+  ".mov": "video/quicktime",
+  ".mkv": "video/x-matroska",
+  ".webm": "video/webm",
+  ".avi": "video/x-msvideo",
+  ".wmv": "video/x-ms-wmv",
+  ".flv": "video/x-flv",
 };

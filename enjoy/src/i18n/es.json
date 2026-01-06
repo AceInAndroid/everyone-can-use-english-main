@@ -925,6 +925,8 @@
   "bulkDeleteAborted": "Eliminación masiva abortada",
   "notFound": "No encontrado",
   "saved": "Guardado",
+  "clear": "Limpiar",
+  "chooseFile": "Elegir archivo",
   "deleteDocumentConfirm": "¿Estás seguro de eliminar este documento?",
   "documentDeletedSuccessfully": "Documento eliminado con éxito",
   "autoTranslate": "Traducción automática",
@@ -959,5 +961,10 @@
   "checkingForUpdate": "Buscando actualización",
   "updateAvailable": "Actualización disponible",
   "quitAndInstall": "Salir e instalar",
-  "pleaseSelect": "Por favor, selecciona"
+  "pleaseSelect": "Por favor, selecciona",
+  "enableDeepFilterNet": "Mejorar calidad de audio",
+  "enableDeepFilterNetDescription": "Usa DeepFilterNet para reducir ruido y obtener puntuaciones más precisas (puede tardar más).",
+  "deepFilterBinaryPath": "Ejecutable de DeepFilter",
+  "deepFilterBinaryPathDescription": "Indica la ruta completa al binario deep-filter descargado o déjalo vacío para usar la búsqueda predeterminada/PATH.",
+  "deepFilterBinaryPathPlaceholder": "p. ej. /Users/me/Downloads/deep-filter"
 }

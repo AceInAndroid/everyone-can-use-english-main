@@ -5,6 +5,7 @@ import {
   DefaultVideoLayout,
   defaultLayoutIcons,
 } from "@vidstack/react/player/layouts/default";
+import { MIME_TYPES } from "@/constants";
 
 export const PostMedium = (props: { medium: MediumType }) => {
   const { medium } = props;
@@ -20,10 +21,8 @@ export const PostMedium = (props: { medium: MediumType }) => {
           <MediaPlayer
             poster={medium.coverUrl}
             src={{
-              type: `${medium.mediumType.toLowerCase()}/${
-                medium.extname.replace(".", "") || "mp4"
-              }`,
               src: medium.sourceUrl,
+              type: getMediumMimeType(medium),
             } as PlayerSrc}
           >
             <MediaProvider />
@@ -42,4 +41,30 @@ export const PostMedium = (props: { medium: MediumType }) => {
       )}
     </div>
   );
+};
+
+const normalizeExtension = (ext?: string) => {
+  if (!ext) return "";
+  const trimmed = ext.trim();
+  if (!trimmed) return "";
+  return trimmed.startsWith(".") ? trimmed.toLowerCase() : `.${trimmed.toLowerCase()}`;
+};
+
+const guessExtensionFromUrl = (url?: string) => {
+  if (!url) return "";
+  try {
+    const match = url.match(/\.[a-zA-Z0-9]+(?=(?:[?#]|$))/);
+    return match ? match[0].toLowerCase() : "";
+  } catch {
+    return "";
+  }
+};
+
+const getMediumMimeType = (medium: MediumType) => {
+  const ext =
+    normalizeExtension(medium.extname) || guessExtensionFromUrl(medium.sourceUrl);
+  if (ext && MIME_TYPES[ext]) {
+    return MIME_TYPES[ext];
+  }
+  return medium.mediumType === "Audio" ? "audio/mpeg" : "video/mp4";
 };

@@ -938,6 +938,8 @@
   "bulkDeleteAborted": "批量删除已中止",
   "notFound": "未找到",
   "saved": "已保存",
+  "clear": "清除",
+  "chooseFile": "选择文件",
   "deleteDocumentConfirm": "您确定要删除此文档吗？",
   "documentDeletedSuccessfully": "文档删除成功",
   "autoTranslate": "自动翻译",
@@ -972,5 +974,10 @@
   "checkingForUpdate": "正在检查更新",
   "updateAvailable": "有新版本",
   "quitAndInstall": "退出并安装新版本",
-  "pleaseSelect": "请选择"
+  "pleaseSelect": "请选择",
+  "enableDeepFilterNet": "提升音频质量",
+  "enableDeepFilterNetDescription": "使用 DeepFilterNet 对音频进行降噪以获得更准确的评分（处理速度会略慢）。",
+  "deepFilterBinaryPath": "DeepFilter 可执行文件",
+  "deepFilterBinaryPathDescription": "指定下载的 deep-filter 程序路径，留空则使用内置或 PATH 中的可执行文件。",
+  "deepFilterBinaryPathPlaceholder": "例如 /Users/me/Downloads/deep-filter"
 }

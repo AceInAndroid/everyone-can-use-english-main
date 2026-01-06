@@ -98,7 +98,10 @@ class EchogardenWrapper {
     // Model package directory used by echogarden is `whisper.cpp-<modelId>`.
     const modelDir = await loadPackage(`whisper.cpp-${modelId}`);
     const modelPath = path.join(modelDir, `ggml-${modelId}.bin`);
-    const coreMLDir = path.join(modelDir, `ggml-${modelId}-encoder.mlmodelc`);
+    const coreMLEncoderPath = path.join(
+      modelDir,
+      `ggml-${modelId}-encoder.mlmodelc`
+    );
 
     if (!fs.existsSync(modelPath)) {
       throw new Error(`Whisper.cpp model not found: ${modelPath}`);
@@ -107,9 +110,9 @@ class EchogardenWrapper {
     // "Force" Core ML by requiring the compiled encoder exists and running with
     // cwd set to the model directory (some builds look for the encoder bundle
     // next to the model).
-    if (!fs.existsSync(coreMLDir)) {
+    if (!fs.existsSync(coreMLEncoderPath)) {
       throw new Error(
-        `Core ML encoder model not found: ${coreMLDir}. Please download it in Settings > AI > STT > Whisper.cpp.`
+        `Core ML encoder model not found: ${coreMLEncoderPath}. Please download it in Settings > AI > STT > Whisper.cpp.`
       );
     }
 
@@ -138,6 +141,7 @@ class EchogardenWrapper {
       `whispercpp-${Date.now()}-${randomBytes(6).toString("hex")}`
     );
     const outJsonPath = `${outBase}.json`;
+    const outSrtPath = `${outBase}.srt`;
     const tmpWavPath = `${outBase}.wav`;
     await fs.writeFile(tmpWavPath, sourceAsWave);
 
@@ -159,7 +163,9 @@ class EchogardenWrapper {
     // Force flash attention on: some Core ML builds default it on; making it
     // explicit keeps behavior consistent.
     const args: string[] = [
+      "--output-json",
       "--output-json-full",
+      "--output-srt",
       "--output-file",
       outBase,
       "--model",
@@ -183,6 +189,9 @@ class EchogardenWrapper {
       "--max-len",
       "0",
       "--flash-attn",
+      "--coreml",
+      "--coreml-encoder",
+      coreMLEncoderPath,
       "--file",
       tmpWavPath
     ];
@@ -225,49 +234,77 @@ class EchogardenWrapper {
       throw err;
     });
 
-    if (!fs.existsSync(outJsonPath)) {
-      throw new Error(`whisper.cpp output JSON not found: ${outJsonPath}`);
-    }
-
-    const resultObject = fs.readJsonSync(outJsonPath) as any;
-    try {
-      fs.removeSync(outJsonPath);
-      fs.removeSync(tmpWavPath);
-    } catch {
-      // ignore
-    }
-
     const segmentTimeline: any[] = [];
     let transcript = "";
 
-    const transcription = Array.isArray(resultObject?.transcription)
-      ? resultObject.transcription
-      : [];
-    for (const segment of transcription) {
-      const text = String(segment?.text || "").trim();
-      const fromMs = segment?.offsets?.from;
-      const toMs = segment?.offsets?.to;
-      const startTime =
-        typeof fromMs === "number" && Number.isFinite(fromMs) ? fromMs / 1000 : 0;
-      const endTime =
-        typeof toMs === "number" && Number.isFinite(toMs) ? toMs / 1000 : startTime;
-
-      if (text) {
-        transcript += (transcript ? " " : "") + text;
+    if (fs.existsSync(outJsonPath)) {
+      const resultObject = fs.readJsonSync(outJsonPath) as any;
+      try {
+        fs.removeSync(outJsonPath);
+        fs.removeSync(tmpWavPath);
+      } catch {
+        // ignore
       }
 
-      segmentTimeline.push({
-        type: "segment",
-        text,
-        startTime,
-        endTime,
-        timeline: [],
-      });
+      const transcription = Array.isArray(resultObject?.transcription)
+        ? resultObject.transcription
+        : [];
+      for (const segment of transcription) {
+        const text = String(segment?.text || "").trim();
+        const fromMs = segment?.offsets?.from;
+        const toMs = segment?.offsets?.to;
+        const startTime =
+          typeof fromMs === "number" && Number.isFinite(fromMs) ? fromMs / 1000 : 0;
+        const endTime =
+          typeof toMs === "number" && Number.isFinite(toMs) ? toMs / 1000 : startTime;
+
+        if (text) {
+          transcript += (transcript ? " " : "") + text;
+        }
+
+        segmentTimeline.push({
+          type: "segment",
+          text,
+          startTime,
+          endTime,
+          timeline: [],
+        });
+      }
+    } else if (fs.existsSync(outSrtPath)) {
+      const srtContent = fs.readFileSync(outSrtPath, "utf8");
+      try {
+        fs.removeSync(outSrtPath);
+        fs.removeSync(tmpWavPath);
+      } catch {
+        // ignore cleanup errors
+      }
+      const segments = parseSrt(srtContent);
+      for (const segment of segments) {
+        const text = segment.text;
+        if (text) {
+          transcript += (transcript ? " " : "") + text;
+        }
+        segmentTimeline.push({
+          type: "segment",
+          text,
+          startTime: segment.start,
+          endTime: segment.end,
+          timeline: [],
+        });
+      }
+      if (!segmentTimeline.length) {
+        throw new Error(`whisper.cpp output JSON not found: ${outJsonPath}`);
+      }
+    } else {
+      throw new Error(`whisper.cpp output JSON not found: ${outJsonPath}`);
     }
 
     return {
       transcript,
       timeline: segmentTimeline,
+      wordTimeline: [] as TimelineEntry[],
+      language: language === "auto" ? "en" : language,
+      inputRawAudio: null as any,
     };
   }
 
@@ -588,7 +625,7 @@ class EchogardenWrapper {
                 typeof chunk === "string"
                   ? chunk
                   : Buffer.isBuffer(chunk)
-                    ? chunk.toString(typeof encoding === "string" ? encoding : "utf8")
+                    ? chunk.toString(typeof encoding === "string" ? (encoding as any) : "utf8")
                     : String(chunk);
 
               buffered += str;
@@ -828,5 +865,36 @@ class EchogardenWrapper {
     throw lastError || new Error("Failed to download Core ML model");
   }
 }
+
+const parseSrt = (content: string) => {
+  const blocks = content
+    .split(/\r?\n\r?\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  const segments: { start: number; end: number; text: string }[] = [];
+  for (const block of blocks) {
+    const lines = block.split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) continue;
+    const timingLine = lines[1];
+    const match = timingLine.match(/(\d{2}:\d{2}:\d{2},\d{3})\s+--?>\s+(\d{2}:\d{2}:\d{2},\d{3})/);
+    if (!match) continue;
+    const start = srtTimestampToSeconds(match[1]);
+    const end = srtTimestampToSeconds(match[2]);
+    const text = lines.slice(2).join(" ").trim();
+    segments.push({ start, end, text });
+  }
+  return segments;
+};
+
+const srtTimestampToSeconds = (ts: string) => {
+  const [time, milli = "0"] = ts.split(",");
+  const [hh = "0", mm = "0", ss = "0"] = time.split(":");
+  const hours = Number(hh) || 0;
+  const minutes = Number(mm) || 0;
+  const seconds = Number(ss) || 0;
+  const milliseconds = Number(milli) || 0;
+  return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+};
 
 export default new EchogardenWrapper();
