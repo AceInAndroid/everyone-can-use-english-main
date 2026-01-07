@@ -3,7 +3,7 @@
   "private": true,
   "name": "enjoy",
   "productName": "EchoLearn",
-  "version": "0.9.1",
+  "version": "0.9.5",
   "description": "EchoLearn desktop app",
   "main": ".vite/build/main.js",
   "types": "./src/types.d.ts",
